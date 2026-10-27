@@ -22,6 +22,37 @@ Open `http://localhost:8080` on your computer. If you use a phone on the same ne
 
 Try creating a challenge, copy the resulting link, open it in a separate tab, finish all questions, share the score, then play Survive Naija. Real WhatsApp sharing works best once the site is deployed to HTTPS.
 
+## 1b. Automated tests
+
+The site ships with two lightweight test layers. Both run against **guest mode** and
+need **no Supabase credentials**.
+
+```bash
+# One-time: install the test runner + a headless browser
+npm install
+npm run test:e2e:install     # downloads Chromium for Playwright
+
+# Fast pure-logic unit tests (Node built-in runner, no browser)
+npm run test:unit            # -> 16 tests: link encode/decode, scoring, sim math, privacy filter
+
+# End-to-end browser smoke tests (Playwright; serves the site itself)
+npm run test:e2e             # -> 22 checks across Desktop Chrome + Pixel 7 viewports
+
+# Everything
+npm test
+```
+
+**What E2E covers:** guest friendship challenge create → shareable link → open in a
+fresh browser context → complete → scorecard → "create your own" CTA; a full Survive
+Naija round → outcome → restart; navigation + browser back/forward (popstate); input
+validation (short name, unanswered questions); malformed guest links and cloud (`?c=`)
+links with no backend; phone viewport (bottom nav shows, no horizontal overflow, auth
+dialog focus). Last run (2026-10-28): **16/16 unit, 22/22 E2E passing.**
+
+**Untested paths (require live Supabase — Milestone 2):** email magic-link sign-in,
+cloud challenge storage/retrieval, real activity upload/RLS, and profile creation.
+See `STATUS.md` and `REVIEW_NOTES.md`.
+
 ## 2. Enable real sign-up and stored activity
 
 1. Create a Supabase project at https://supabase.com/.
