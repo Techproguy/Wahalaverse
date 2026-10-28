@@ -2,9 +2,17 @@
 
 _Branch: `milestone-2-auth-backend` (off `main` @ `cdf635c`). Date: 2026-10-28._
 
-> **Status: approved; Phase A in progress.** CI and Phase A (auth) are implemented on this branch
-> with automated tests; everything else below remains PLAN ONLY. No credentials are connected, no
-> migrations are run, no data is collected, nothing is deployed, PR #2 is not merged.
+> **Status: Phase A done; Phase B in progress.** CI, Phase A (auth), the F-1..F-5 fixes, secure
+> profile update, and the two-account RLS integration-test scaffold are implemented on this branch
+> with automated tests. Remaining Phase B/C items below are PLAN ONLY. No credentials are connected,
+> no migrations are run, no data is collected, nothing is deployed, PR #2 is not merged.
+>
+> **Phase B progress (this round):** F-1 pending-name isolation (email+TTL scoping, consume/clear);
+> F-2..F-5 auth state hygiene (field clearing, monotonic `authOpId` stale-response invalidation,
+> try/catch/finally busy hygiene); secure `updateProfile` (account-scoped, epoch-guarded, draft
+> `Update own profile` policy); and `tests/rls.integration.test.js` (skips without a TEST project).
+> Still pending in Phase B/C: live two-account RLS verification, account deletion/export, and the
+> Phase C enumeration removal (get_challenge RPC).
 
 ## Review additions incorporated (2026-10-28)
 1. **GitHub Actions CI** — added (`.github/workflows/ci.yml`): a unit job and a Playwright job on
