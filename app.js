@@ -59,27 +59,20 @@ function sample(){history.pushState({},'',location.pathname+'?sample=1');window.
 function finishPlay(){state.playStep=Q.length;const score=C.scoreQuiz(state.playAnswers,state.challenge.answers);if(!state.playSaved){state.playSaved=true;saveActivity('friendship_completed',{score,total:Q.length,challenge_id:state.challenge.type==='cloud'?state.challenge.id:null})}render()}
 function restartSim(){state.simIndex=0;state.simMoney=SIM_START.money;state.simPeace=SIM_START.peace;state.simStreet=SIM_START.street;state.simResponse='';state.simDone=false;render()}
 function simChoose(i){if(state.simDone)return;const c=SCENES[state.simIndex]?.choices?.[i];if(!c)return;const next=C.applySimChoice({money:state.simMoney,peace:state.simPeace,street:state.simStreet},c);state.simMoney=next.money;state.simPeace=next.peace;state.simStreet=next.street;state.simResponse=c.reply;state.simIndex+=1;if(state.simIndex>=SCENES.length){state.simDone=true;saveActivity('simulator_completed',{balance:state.simMoney,peace:state.simPeace,street:state.simStreet})}render()}
-function saveActivity(kind,details){const data=getRecent();data.unshift({id:id(),kind,details,created_at:new Date().toISOString(),synced:false,owner:state.user?.id||null});setRecent(data);void syncActivities()}
-async function syncActivities(){if(!state.user||!state.supabase)return;
-  // Capture the identity + auth generation ONCE. Every insert and the final
-  // persist use these captured values, never the live state, so an account
-  // switch or sign-out mid-flight can never upload one account's queued items
-  // under another account's id, nor resurrect a queue cleared on sign-out.
-  const uid=state.user.id;const epoch=state.authEpoch;const done=new Set();
-  for(const item of C.syncableActivities(getRecent(),uid)){
-    try{const {error}=await state.supabase.from('activities').insert({id:item.id,user_id:uid,kind:item.kind,details:item.details,created_at:item.created_at});if(error&&error.code!=='23505')throw error;done.add(item.id);}
-    catch(err){console.warn('Activity sync:',err);break}
-    if(state.authEpoch!==epoch)return; // account changed mid-sync: abort WITHOUT writing
-  }
-  if(state.authEpoch!==epoch)return;
-  // Re-read the current queue and stamp only the items we actually synced, so a
-  // concurrently-added activity or a sign-out clear is never clobbered.
-  const fresh=getRecent();for(const f of fresh){if(done.has(f.id)){f.synced=true;f.owner=uid}}setRecent(fresh);
-  if(state.page==='account')void refreshAccount()}
-async function refreshAccount(){if(!state.user||!state.supabase)return;const uid=state.user.id;const epoch=state.authEpoch;state.loadingAccount=true;if(state.page==='account')render();try{const [{data:acts,error:actErr},{data:challs,error:chErr}]=await Promise.all([state.supabase.from('activities').select('id,kind,details,created_at').order('created_at',{ascending:false}).limit(30),state.supabase.from('challenges').select('id,title,created_at').eq('owner_id',uid).order('created_at',{ascending:false}).limit(20)]);if(actErr)throw actErr;if(chErr)throw chErr;if(state.authEpoch!==epoch)return; // account changed mid-fetch: discard stale results
-  state.cloudActivities=acts||[];state.cloudChallenges=challs||[]}catch(err){console.warn('Account history:',err)}finally{if(state.authEpoch===epoch)state.loadingAccount=false;if(state.page==='account')render()}}
-async function ensureProfile(){if(!state.user||!state.supabase)return;const n=titleCase(state.user.user_metadata?.display_name||localStorage.getItem('wv_pending_name')||state.user.email?.split('@')[0]||'Wahala user');try{const {data,error}=await state.supabase.from('profiles').upsert({user_id:state.user.id,display_name:n},{onConflict:'user_id',ignoreDuplicates:true}).select('display_name').single();if(error){const {data:existing}=await state.supabase.from('profiles').select('display_name').eq('user_id',state.user.id).maybeSingle();if(existing)state.profile=existing;}else state.profile=data}catch(err){console.warn('Profile:',err)}render();void syncActivities();void refreshAccount()}
-async function initCloud(){if(!hasConfig){render();return}try{const sdk=await import('https://esm.sh/@supabase/supabase-js@2');state.supabase=sdk.createClient(cfg.supabaseUrl,cfg.supabasePublishableKey);state.cloudReady=true;const {data:{session}}=await state.supabase.auth.getSession();state.user=session?.user||null;state.supabase.auth.onAuthStateChange((_event,session)=>{const oldId=state.user?.id||null;state.user=session?.user||null;const newId=state.user?.id||null;if(newId!==oldId)state.authEpoch++;if(state.user&&newId!==oldId)Promise.resolve().then(ensureProfile);else render()});render();if(state.user)void ensureProfile();if(qs.has('c')&&state.page==='play')void loadChallenge()}catch(err){console.error('Cloud initialization error:',err);state.cloudReady=false;if(qs.has('c')&&state.page==='play'){state.loading=false;state.challenge=null}render()}}
+// Per-browser-session guest id: used to attribute unowned (guest) activities to
+// THIS session only, so a previous session's or another person's guest history
+// on the same browser is never silently synced to a signed-in account.
+function initGuestSession(){let s;try{s=sessionStorage.getItem('wv_guest_session')}catch{/* private mode */}if(!s){s=id();try{sessionStorage.setItem('wv_guest_session',s)}catch{/* private mode */}}return s}
+const guestSessionId=initGuestSession();
+// Account state machine (profile/activity/challenge sync) lives in account.js so
+// it can be driven by deterministic tests with mocked auth/db. It mutates the
+// shared `state` object through injected collaborators.
+const accountMgr=WahalaAccount.create({state,core:C,storage:{getRecent,setRecent},getSessionId:()=>guestSessionId,getPendingName:()=>{try{return localStorage.getItem('wv_pending_name')}catch{return null}},render});
+const syncActivities=()=>accountMgr.syncActivities();
+const refreshAccount=()=>accountMgr.refreshAccount();
+const ensureProfile=()=>accountMgr.ensureProfile();
+function saveActivity(kind,details){const data=getRecent();const entry={id:id(),kind,details,created_at:new Date().toISOString(),synced:false,owner:state.user?.id||null};if(!entry.owner)entry.session=guestSessionId;data.unshift(entry);setRecent(data);void syncActivities()}
+async function initCloud(){if(!hasConfig){render();return}try{const sdk=await import('https://esm.sh/@supabase/supabase-js@2');state.supabase=sdk.createClient(cfg.supabaseUrl,cfg.supabasePublishableKey);state.cloudReady=true;const {data:{session}}=await state.supabase.auth.getSession();state.user=session?.user||null;state.supabase.auth.onAuthStateChange((_event,session)=>{const oldId=state.user?.id||null;state.user=session?.user||null;const newId=state.user?.id||null;if(newId!==oldId){state.authEpoch++;accountMgr.clearAccountState();}if(state.user&&newId!==oldId)Promise.resolve().then(ensureProfile);else render()});render();if(state.user)void ensureProfile();if(qs.has('c')&&state.page==='play')void loadChallenge()}catch(err){console.error('Cloud initialization error:',err);state.cloudReady=false;if(qs.has('c')&&state.page==='play'){state.loading=false;state.challenge=null}render()}}
 async function requestSignIn(form){if(!state.supabase){toast('Set up Supabase first to enable real accounts');return}const data=new FormData(form);const name=titleCase(data.get('name'));const email=String(data.get('email')||'').trim();if(name.length<2||!email.includes('@')||!data.get('adult')){toast('Add your details and confirm 18+');return}const submit=form.querySelector('button[type=submit]');submit.disabled=true;submit.textContent='Sending your link…';try{localStorage.setItem('wv_pending_name',name);const {error}=await state.supabase.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname,data:{display_name:name}}});if(error)throw error;state.authOpen=false;render();toast('Check your email for a sign-in link 📩')}catch(err){toast(err.message||'Could not send the sign-in link');submit.disabled=false;submit.textContent='Email me a sign-in link ↗'}}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('Copied! Send it to your people 📋')}catch{const tmp=document.createElement('textarea');tmp.value=text;tmp.style.position='fixed';tmp.style.top='-2000px';document.body.appendChild(tmp);tmp.select();const ok=document.execCommand('copy');tmp.remove();toast(ok?'Copied! Send it to your people 📋':'Copy the link from the box above')}}
 function shareLink(link,title,text){if(navigator.share){navigator.share({title,text,url:link}).catch(err=>{if(err.name!=='AbortError')void copy(link)})}else void copy(text+' '+link)}
@@ -105,7 +98,7 @@ case 'sim-choice':simChoose(Number(t.dataset.answer));break;
 case 'restart-sim':restartSim();break;
 case 'share-sim':shareLink(location.origin+location.pathname+'?page=sim','Survive Naija',`I survived Survive Naija with ${formatted(state.simMoney)} left. Can you do better? 😂`);break;
 case 'view-cloud':location.href=urlFor({c:t.dataset.id});break;
-case 'sign-out':if(state.supabase){state.authEpoch++;state.user=null;state.profile=null;state.cloudActivities=[];state.cloudChallenges=[];try{localStorage.removeItem('wv_activity')}catch{/* private mode */}await state.supabase.auth.signOut();render();toast('Signed out successfully')}break;
+case 'sign-out':if(state.supabase){state.authEpoch++;state.user=null;accountMgr.clearAccountState();try{localStorage.removeItem('wv_activity')}catch{/* private mode */}await state.supabase.auth.signOut();render();toast('Signed out successfully')}break;
 }});
 root.addEventListener('submit',ev=>{if(ev.target.id==='auth-form'){ev.preventDefault();void requestSignIn(ev.target)}});
 root.addEventListener('input',ev=>{if(ev.target.id==='creator-name')state.createName=ev.target.value});

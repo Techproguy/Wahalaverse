@@ -93,13 +93,23 @@
 
   // --- Activity sync eligibility (privacy) -----------------------------------
   // Returns the locally-stored activities that may be uploaded for `userId`.
-  // An item is eligible only if it is not already synced AND it is either
-  // unowned (created by a guest in THIS session) or owned by this same user.
-  // This prevents one account's local activity from leaking into another
-  // account that later signs in on the same browser.
-  function syncableActivities(items, userId) {
+  // An item is eligible only if it is NOT already synced AND one of:
+  //   - it is owned by this same user (already attributed to them), OR
+  //   - it is an UNOWNED guest item created in THIS browser session
+  //     (`it.session === sessionId`).
+  // localStorage persists across sessions and across different people on a
+  // shared browser, so an unowned item WITHOUT a matching session id is never
+  // auto-attached to a signed-in account — this prevents silently importing
+  // another guest's history, and prevents one account's activity leaking into
+  // another account that later signs in on the same browser.
+  function syncableActivities(items, userId, sessionId) {
     if (!userId) return [];
-    return (items || []).filter(it => !it.synced && (!it.owner || it.owner === userId));
+    return (items || []).filter(it => {
+      if (it.synced) return false;
+      if (it.owner === userId) return true;        // already this user's
+      if (it.owner) return false;                  // owned by a different user
+      return !!sessionId && it.session === sessionId; // guest item, this session only
+    });
   }
 
   return {

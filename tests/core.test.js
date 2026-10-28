@@ -76,31 +76,33 @@ test('a full Survive Naija run (first choice each round) is deterministic and no
   assert.ok(stats.street >= 0 && stats.street <= 100);
 });
 
+const SESSION = 's1';
+
 test('syncableActivities: nothing syncs without a user id', () => {
-  const items = [{ synced: false, owner: null }];
-  assert.equal(C.syncableActivities(items, null).length, 0);
-  assert.equal(C.syncableActivities(items, undefined).length, 0);
+  const items = [{ synced: false, owner: null, session: SESSION }];
+  assert.equal(C.syncableActivities(items, null, SESSION).length, 0);
+  assert.equal(C.syncableActivities(items, undefined, SESSION).length, 0);
 });
 
-test('syncableActivities: only unsynced + (unowned or own) items are eligible', () => {
+test('syncableActivities: only unsynced + (own or this-session guest) items are eligible', () => {
   const items = [
-    { id: 1, synced: false, owner: null },   // guest, this session -> eligible for A
-    { id: 2, synced: false, owner: 'A' },    // owned by A -> eligible for A
-    { id: 3, synced: false, owner: 'B' },    // owned by B -> NOT for A (leak prevented)
-    { id: 4, synced: true, owner: 'A' },     // already synced -> NOT re-uploaded
+    { id: 1, synced: false, owner: null, session: SESSION }, // guest, this session -> eligible for A
+    { id: 2, synced: false, owner: 'A' },                    // owned by A -> eligible for A
+    { id: 3, synced: false, owner: 'B' },                    // owned by B -> NOT for A (leak prevented)
+    { id: 4, synced: true, owner: 'A' },                     // already synced -> NOT re-uploaded
   ];
-  const eligible = C.syncableActivities(items, 'A').map(x => x.id);
+  const eligible = C.syncableActivities(items, 'A', SESSION).map(x => x.id);
   assert.deepEqual(eligible, [1, 2]);
 });
 
 test('syncableActivities: a guest item, once synced to A, is never eligible for B', () => {
-  // Guest plays (unowned), then A signs in and syncs it.
-  let item = { id: 9, synced: false, owner: null };
-  assert.equal(C.syncableActivities([item], 'A').length, 1); // eligible for A
-  // Simulate the post-sync stamp applied by app.js.
+  // Guest plays (unowned, this session), then A signs in and syncs it.
+  let item = { id: 9, synced: false, owner: null, session: SESSION };
+  assert.equal(C.syncableActivities([item], 'A', SESSION).length, 1); // eligible for A
+  // Simulate the post-sync stamp applied by the account manager.
   item = { ...item, synced: true, owner: 'A' };
-  assert.equal(C.syncableActivities([item], 'A').length, 0); // already synced
-  assert.equal(C.syncableActivities([item], 'B').length, 0); // and never leaks to B
+  assert.equal(C.syncableActivities([item], 'A', SESSION).length, 0); // already synced
+  assert.equal(C.syncableActivities([item], 'B', SESSION).length, 0); // and never leaks to B
 });
 
 test('syncableActivities: B can never pick up A-owned items from a shared queue', () => {
@@ -108,10 +110,20 @@ test('syncableActivities: B can never pick up A-owned items from a shared queue'
     { id: 1, synced: false, owner: 'A' },
     { id: 2, synced: true, owner: 'A' },
     { id: 3, synced: false, owner: 'B' },
-    { id: 4, synced: false, owner: null },
+    { id: 4, synced: false, owner: null, session: SESSION },
   ];
-  const forB = C.syncableActivities(sharedQueue, 'B').map(x => x.id).sort();
-  assert.deepEqual(forB, [3, 4]); // B's own + the unowned guest item only — never A's (ids 1,2)
+  const forB = C.syncableActivities(sharedQueue, 'B', SESSION).map(x => x.id).sort();
+  assert.deepEqual(forB, [3, 4]); // B's own + this-session guest item only — never A's (ids 1,2)
+});
+
+test('syncableActivities: a guest item from a DIFFERENT session is never auto-attached', () => {
+  const items = [
+    { id: 1, synced: false, owner: null, session: 'OLD-SESSION' }, // another guest/session
+    { id: 2, synced: false, owner: null },                         // legacy, no session
+    { id: 3, synced: false, owner: null, session: SESSION },       // this session
+  ];
+  const eligible = C.syncableActivities(items, 'A', SESSION).map(x => x.id);
+  assert.deepEqual(eligible, [3]); // only the current session's guest item
 });
 
 test('escapeHtml neutralizes HTML metacharacters', () => {
