@@ -1,0 +1,16 @@
+{
+  "name": "wahalaverse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WahalaVerse — mobile-first Nigerian entertainment web app (static, framework-free).",
+  "scripts": {
+    "serve": "python3 -m http.server 8080",
+    "test:unit": "node --test tests/core.test.js tests/account.test.js",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
+    "test": "npm run test:unit && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

@@ -36,7 +36,12 @@ alter table public.activities enable row level security;
 revoke all on table public.profiles, public.challenges, public.activities from anon, authenticated;
 grant select,insert on table public.profiles to authenticated;
 grant select,insert,delete on table public.challenges to authenticated;
-grant select on table public.challenges to anon;
+-- Column-scoped grant for anon: public (link) readers get everything they need
+-- to PLAY a challenge, but NOT owner_id (the creator's auth.users UUID). This
+-- keeps the account identifier out of unauthenticated reads. authenticated keeps
+-- full-column select because the app filters a user's own challenges by owner_id.
+grant select (id, owner_name, title, answers, template_version, created_at)
+  on table public.challenges to anon;
 grant select,insert on table public.activities to authenticated;
 
 -- Profiles belong only to their account holders.
@@ -45,8 +50,22 @@ create policy "Read own profile" on public.profiles for select to authenticated
 create policy "Create own profile" on public.profiles for insert to authenticated
   with check ((select auth.uid())=user_id);
 
--- Anyone with the id can play a public challenge. Remember: answers are public
--- to technical users who inspect the API; suitable for fun quizzes, not prizes.
+-- PRIVACY NOTE on this SELECT policy (reviewed for Milestone 1):
+--   `using (true)` makes every challenge row readable by anon + authenticated.
+--   Implications for a "public by link" product:
+--   1. ENUMERATION: because there is no row filter, an anon caller can list the
+--      WHOLE table (e.g. GET /rest/v1/challenges with no id filter), not just a
+--      single shared link. The unguessable UUID id does NOT protect against this
+--      — you don't need to guess ids to dump the set. Harvestable: owner_name,
+--      answers (the quiz key), title, created_at. This is acceptable for casual
+--      fun (answers are already documented as non-secret; NEVER use for prizes),
+--      but it is broader than the app needs (the app only ever reads BY id).
+--   2. ACCOUNT ID: mitigated above via a column-scoped grant so anon cannot read
+--      owner_id; without that, anon could group all challenges by creator.
+--   RECOMMENDED M2 REMEDIATION (needs a live DB + test accounts, out of M1 scope):
+--   replace table-level anon SELECT with a SECURITY DEFINER RPC get_challenge(id)
+--   that returns a single row, and drop the anon table grant — this removes
+--   enumeration entirely while keeping by-link reads. Tracked in REVIEW_NOTES.md.
 create policy "Public challenge reading" on public.challenges for select to anon,authenticated
   using (true);
 create policy "Create own challenges" on public.challenges for insert to authenticated
