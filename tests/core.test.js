@@ -93,6 +93,27 @@ test('syncableActivities: only unsynced + (unowned or own) items are eligible', 
   assert.deepEqual(eligible, [1, 2]);
 });
 
+test('syncableActivities: a guest item, once synced to A, is never eligible for B', () => {
+  // Guest plays (unowned), then A signs in and syncs it.
+  let item = { id: 9, synced: false, owner: null };
+  assert.equal(C.syncableActivities([item], 'A').length, 1); // eligible for A
+  // Simulate the post-sync stamp applied by app.js.
+  item = { ...item, synced: true, owner: 'A' };
+  assert.equal(C.syncableActivities([item], 'A').length, 0); // already synced
+  assert.equal(C.syncableActivities([item], 'B').length, 0); // and never leaks to B
+});
+
+test('syncableActivities: B can never pick up A-owned items from a shared queue', () => {
+  const sharedQueue = [
+    { id: 1, synced: false, owner: 'A' },
+    { id: 2, synced: true, owner: 'A' },
+    { id: 3, synced: false, owner: 'B' },
+    { id: 4, synced: false, owner: null },
+  ];
+  const forB = C.syncableActivities(sharedQueue, 'B').map(x => x.id).sort();
+  assert.deepEqual(forB, [3, 4]); // B's own + the unowned guest item only — never A's (ids 1,2)
+});
+
 test('escapeHtml neutralizes HTML metacharacters', () => {
   assert.equal(C.escapeHtml('<script>"&\'</script>'), '&lt;script&gt;&quot;&amp;&#39;&lt;/script&gt;');
   assert.equal(C.escapeHtml(null), '');
