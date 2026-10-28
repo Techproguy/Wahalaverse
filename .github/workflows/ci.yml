@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main, milestone-2-auth-backend]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Node unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Python 3 is preinstalled on ubuntu-latest and powers the static web server
+      # (see playwright.config.js webServer). Install only the Chromium browser.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
