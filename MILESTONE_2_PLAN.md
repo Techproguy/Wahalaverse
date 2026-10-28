@@ -2,7 +2,13 @@
 
 _Branch: `milestone-2-auth-backend` (off `main` @ `cdf635c`). Date: 2026-10-28._
 
-> **Status: Phase A done; Phase B in progress.** CI, Phase A (auth), the F-1..F-5 fixes, secure
+> **Status: Phase A, B, C done (code/schema/tests); live verification pending.** Phase C removed
+> challenge enumeration via a hardened `get_challenge` RPC + owner-scoped reads (see
+> `SECURITY_REVIEW_PHASE_C.md`, `MIGRATIONS.md`, `supabase/migrations/0002`). Remaining: live
+> two-account RLS verification, account deletion/export, and the live sign-out session-cleanup check.
+> No migrations applied, no live credentials, no deploy, no live registrations, PR #2 not merged.
+>
+> _(Earlier status note, retained:)_ CI, Phase A (auth), the F-1..F-5 fixes, secure
 > profile update, and the two-account RLS integration-test scaffold are implemented on this branch
 > with automated tests. Remaining Phase B/C items below are PLAN ONLY. No credentials are connected,
 > no migrations are run, no data is collected, nothing is deployed, PR #2 is not merged.

@@ -33,7 +33,7 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 50 tests: core + account + auth (mocked backend)
+npm run test:unit            # -> 55 tests: core + account + auth + challenges (mocked backend)
 npm run test:rls             # -> two-account RLS probes; SKIPS unless TEST-project env vars are set
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
@@ -53,7 +53,7 @@ deferred-promise Supabase client: delayed profile responses, account switching, 
 refreshes, and cross-session guest data, plus the Phase A auth flow (send link/code, verify OTP,
 error mapping) via a mocked auth client, plus pending-name isolation, auth
 state-hygiene (stale-response invalidation), and secure profile update. Last run
-(2026-10-28): **50/50 unit, 22/22 E2E passing (72 total)**; the RLS integration
+(2026-10-28): **55/55 unit, 22/22 E2E passing (77 total)**; the RLS integration
 suite is prepared and skips without a TEST project.
 CI (GitHub Actions) runs both suites on every push/PR.
 
@@ -87,7 +87,7 @@ See `STATUS.md` and `REVIEW_NOTES.md`.
 | Table | Columns (core) | Access |
 |---|---|---|
 | `profiles` | `user_id`, `display_name`, `created_at` | Logged-in owner can read and create only |
-| `challenges` | `id`, `owner_id`, `owner_name`, `title`, `answers`, `created_at` | Public reads; owner inserts/deletes |
+| `challenges` | `id`, `owner_id`, `owner_name`, `title`, `answers`, `created_at` | **By-id read via `get_challenge` RPC**; authenticated reads/inserts/deletes **own only**; no table enumeration (anon has no table SELECT) |
 | `activities` | `id`, `user_id`, `kind`, `details`, `created_at` | Logged-in owner reads and inserts only |
 
 Supabase Auth stores account email separately. Guest links encode the quiz answer key into the URL; they are openly inspectable by technical users, so don't use for competitions with prizes. Guest results remain browser-local, but are synced to the player's account upon successful future login on the same browser.
