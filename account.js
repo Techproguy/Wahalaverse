@@ -142,7 +142,32 @@
       }
     }
 
-    return { clearAccountState, ensureProfile, syncActivities, refreshAccount };
+    // Secure profile update: a signed-in user can change ONLY their own
+    // display_name. Account-scoped (`.eq('user_id', uid)` + RLS), epoch-guarded so
+    // a response arriving after an identity change is discarded, validated to the
+    // 2..30 char range the DB check constraint enforces.
+    async function updateProfile(rawName) {
+      if (!state.user || !state.supabase) return { ok: false, error: 'not-signed-in' };
+      const name = core.titleCase(rawName || '');
+      if (name.length < 2) return { ok: false, error: 'too-short' };
+      const uid = state.user.id;
+      const epoch = state.authEpoch;
+      try {
+        const { data, error } = await state.supabase.from('profiles')
+          .update({ display_name: name }).eq('user_id', uid)
+          .select('display_name').single();
+        if (!stillCurrent(uid, epoch)) return { ok: false, error: 'superseded' };
+        if (error) throw error;
+        state.profile = data;
+        render();
+        return { ok: true, profile: data };
+      } catch (err) {
+        console.warn('Profile update:', err);
+        return { ok: false, error: err };
+      }
+    }
+
+    return { clearAccountState, ensureProfile, syncActivities, refreshAccount, updateProfile };
   }
 
   return { create };

@@ -28,6 +28,7 @@ function createMockSupabase() {
     from(table) {
       const b = {};
       b.upsert = (row) => { b._row = row; return b; };
+      b.update = (row) => { b._row = row; return b; };
       b.insert = (row) => term(table, 'insert', row); // awaited directly
       b.select = () => b;
       b.eq = (col, val) => { b._eq = { col, val }; return b; };
@@ -210,6 +211,43 @@ test('a guest item from THIS session syncs and is stamped with the owner', async
   assert.equal(storage.dump()[0].synced, true);
   assert.equal(storage.dump()[0].owner, 'A');
   assert.equal(storage.dump()[0].session, undefined, 'session tag dropped once owned');
+});
+
+// --- Phase B: secure profile update -----------------------------------------
+test('updateProfile updates only the signed-in user\'s own row and applies the result', async () => {
+  const state = baseState({ user: { id: 'A', email: 'a@test.com' } });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const p = mgr.updateProfile('New Name');
+  await tick();
+  const upd = mock.pending.find(o => o.table === 'profiles');
+  assert.ok(upd, 'an update should be pending');
+  assert.equal(upd.args.display_name, 'New Name');
+  mock.settle('profiles', 'single', { data: { display_name: 'New Name' }, error: null });
+  const res = await p;
+  assert.equal(res.ok, true);
+  assert.deepEqual(state.profile, { display_name: 'New Name' });
+});
+
+test('updateProfile rejects a too-short name without calling the backend', async () => {
+  const state = baseState({ user: { id: 'A', email: 'a@test.com' } });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const res = await mgr.updateProfile('x');
+  assert.equal(res.ok, false);
+  assert.equal(res.error, 'too-short');
+  assert.equal(mock.pending.length, 0, 'no backend call for an invalid name');
+});
+
+test('updateProfile discards its response if the account changed mid-update', async () => {
+  const state = baseState({ user: { id: 'A', email: 'a@test.com' }, profile: null });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const p = mgr.updateProfile('New Name');
+  await tick();
+  state.user = { id: 'B' }; state.authEpoch = 2; // switch mid-update
+  mock.settle('profiles', 'single', { data: { display_name: 'New Name' }, error: null });
+  const res = await p;
+  assert.equal(res.ok, false);
+  assert.equal(res.error, 'superseded');
+  assert.equal(state.profile, null, "A's updated name must not be applied after switching to B");
 });
 
 // --- clearAccountState -------------------------------------------------------

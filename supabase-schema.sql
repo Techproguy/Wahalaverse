@@ -49,6 +49,13 @@ create policy "Read own profile" on public.profiles for select to authenticated
   using ((select auth.uid())=user_id);
 create policy "Create own profile" on public.profiles for insert to authenticated
   with check ((select auth.uid())=user_id);
+-- Milestone 2 (Phase B): allow a signed-in user to update ONLY their own profile's
+-- display_name. Account-scoped by auth.uid(); the 2..30 char length is enforced by
+-- the table check constraint. DRAFT — not applied to any live project yet.
+grant update (display_name) on table public.profiles to authenticated;
+create policy "Update own profile" on public.profiles for update to authenticated
+  using ((select auth.uid())=user_id)
+  with check ((select auth.uid())=user_id);
 
 -- PRIVACY NOTE on this SELECT policy (reviewed for Milestone 1):
 --   `using (true)` makes every challenge row readable by anon + authenticated.
