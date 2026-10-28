@@ -106,6 +106,79 @@ test('operations no-op cleanly when cloud is not configured', async () => {
 // Account-switching with two test identities: each verifyOtp returns a distinct
 // session, confirming the mock models independent accounts (used by the app's
 // onAuthStateChange isolation, covered in account.test.js).
+// --- Controller tests: F-2..F-5 (stale-response invalidation, busy hygiene) --
+function makeController(overrides = {}) {
+  const state = Object.assign({ authOpen: true, authStage: 'form', authEmail: '', authName: '', authOpId: 0, authSending: false, authVerifying: false }, overrides.state || {});
+  const sendD = []; const verifyD = [];
+  const ops = {
+    send: () => { const d = makeDeferred(); sendD.push(d); return d.promise; },
+    verify: () => { const d = makeDeferred(); verifyD.push(d); return d.promise; },
+  };
+  const toasts = []; let signedIn = 0; let persisted = [];
+  const ctl = Auth.createController({
+    state, ops,
+    persistPending: (x) => persisted.push(x),
+    render: () => {},
+    toast: (m) => toasts.push(m),
+    focusDialog: () => {},
+    onSignedIn: () => { signedIn++; },
+  });
+  return { ctl, state, sendD, verifyD, toasts, persisted, signedIn: () => signedIn };
+}
+
+test('F-5: a verify response that resolves after the dialog is superseded is ignored', async () => {
+  const h = makeController({ state: { authEmail: 'a@test.com' } });
+  const p = h.ctl.verify({ token: '123456' });
+  await tick();
+  assert.equal(h.state.authVerifying, true);
+  // User closes the dialog / changes email / signs out -> op id bumped elsewhere.
+  h.state.authOpId++;
+  h.verifyD[0].resolve({ ok: true, session: { user: { id: 'A' } } });
+  const res = await p;
+  assert.equal(res.superseded, true);
+  assert.equal(h.signedIn(), 0, 'stale success must NOT sign the user in');
+  assert.equal(h.state.authOpen, true, 'stale success must not mutate dialog state');
+});
+
+test('F-3: a stale response does not clear a newer attempt\'s busy flag', async () => {
+  const h = makeController({ state: { authEmail: 'a@test.com' } });
+  const p1 = h.ctl.verify({ token: '111111' });   // op 1
+  await tick();
+  const p2 = h.ctl.verify({ token: '222222' });   // op 2 (newer) -> authVerifying true
+  await tick();
+  assert.equal(h.state.authVerifying, true);
+  h.verifyD[0].resolve({ ok: false, message: 'late' }); // op1 resolves late
+  await p1;
+  assert.equal(h.state.authVerifying, true, "the newer attempt's busy flag survives the stale resolution");
+  h.verifyD[1].resolve({ ok: true, session: {} });
+  await p2;
+  assert.equal(h.state.authVerifying, false);
+});
+
+test('F-4: a thrown (network) rejection never leaves the busy flag stuck', async () => {
+  const state = { authOpen: true, authStage: 'form', authEmail: 'a@test.com', authName: '', authOpId: 0, authSending: false, authVerifying: false };
+  const ops = { send: () => Promise.reject(new Error('network down')), verify: () => Promise.reject(new Error('network down')) };
+  const toasts = [];
+  const ctl = Auth.createController({ state, ops, persistPending: () => {}, render: () => {}, toast: (m) => toasts.push(m) });
+  await ctl.signIn({ name: 'A', email: 'a@test.com' });
+  assert.equal(state.authSending, false, 'send: busy cleared after a thrown rejection');
+  await ctl.verify({ token: '123456' });
+  assert.equal(state.authVerifying, false, 'verify: busy cleared after a thrown rejection');
+  assert.ok(toasts.length >= 1);
+});
+
+test('F-2/happy: a successful verify clears email + name and signs in', async () => {
+  const h = makeController({ state: { authEmail: 'a@test.com', authName: 'Ada' } });
+  const p = h.ctl.verify({ token: '123456' });
+  await tick();
+  h.verifyD[0].resolve({ ok: true, session: { user: { id: 'A' } } });
+  await p;
+  assert.equal(h.state.authEmail, '');
+  assert.equal(h.state.authName, '');
+  assert.equal(h.state.authOpen, false);
+  assert.equal(h.signedIn(), 1);
+});
+
 test('two test identities verify to independent sessions', async () => {
   const mock = mockAuthClient();
   const authMgr = Auth.create({ state: { supabase: mock.supabase }, getRedirectTo: () => 'https://app.test/' });

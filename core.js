@@ -112,10 +112,30 @@
     });
   }
 
+  // --- Pending signup display name (privacy) ---------------------------------
+  // A display name typed at sign-in is stashed locally as {email, name, ts} so it
+  // can seed the profile when the magic link/OTP completes. It must ONLY be used
+  // for the SAME email and within a TTL, or one person's pending name could seed a
+  // different account that signs in later on the same browser. Returns the name
+  // only when the stored record matches `email` (case-insensitive) and is fresh.
+  const PENDING_NAME_TTL_MS = 60 * 60 * 1000; // 1 hour
+  function pendingNameFor(raw, email, now, ttlMs) {
+    if (!raw || !email) return null;
+    const ttl = (typeof ttlMs === 'number') ? ttlMs : PENDING_NAME_TTL_MS;
+    let obj;
+    try { obj = JSON.parse(raw); } catch { return null; }
+    if (!obj || typeof obj !== 'object') return null;
+    if (typeof obj.email !== 'string' || typeof obj.name !== 'string' || typeof obj.ts !== 'number') return null;
+    if (obj.email.trim().toLowerCase() !== String(email).trim().toLowerCase()) return null;
+    if (ttl > 0 && (now - obj.ts) > ttl) return null;
+    return obj.name;
+  }
+
   return {
     Q, QUESTION_COUNT, DEMO, SCENES, SIM_START,
     escapeHtml, titleCase, formatNaira,
     encodeChallenge, decodeChallenge,
     scoreQuiz, applySimChoice, syncableActivities,
+    pendingNameFor, PENDING_NAME_TTL_MS,
   };
 });

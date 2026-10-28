@@ -62,16 +62,18 @@ function memStorage(initial = []) {
   return { getRecent: () => arr.map(x => ({ ...x })), setRecent: (a) => { arr = a.map(x => ({ ...x })); }, dump: () => arr };
 }
 
-function makeAccount(state, storage, sessionId = 's1') {
+function makeAccount(state, storage, sessionId = 's1', pending = {}) {
   const mock = createMockSupabase();
   state.supabase = mock.client;
+  const pendingCalls = { get: [], cleared: 0 };
   const mgr = Account.create({
     state, core: C, storage,
     getSessionId: () => sessionId,
-    getPendingName: () => null,
+    getPendingName: (email) => { pendingCalls.get.push(email); return pending.name !== undefined ? pending.name : null; },
+    clearPendingName: () => { pendingCalls.cleared++; },
     render: () => {},
   });
-  return { mgr, mock };
+  return { mgr, mock, pendingCalls };
 }
 
 const tick = () => new Promise(r => setImmediate(r));
@@ -99,6 +101,33 @@ test('ensureProfile applies the profile when identity is stable', async () => {
   mock.settle('profiles', 'single', { data: { display_name: 'Alice' }, error: null });
   await p;
   assert.deepEqual(state.profile, { display_name: 'Alice' });
+});
+
+test('ensureProfile reads the pending name for THIS email and always clears it (F-1)', async () => {
+  const state = baseState({ user: { id: 'A', email: 'ada@test.com', user_metadata: {} } });
+  const { mgr, mock, pendingCalls } = makeAccount(state, memStorage(), 's1', { name: 'Ada' });
+  const p = mgr.ensureProfile();
+  await tick();
+  // The upsert row is seeded from the pending name, scoped to this user's email...
+  const upsertRow = mock.pending.find(o => o.table === 'profiles').args;
+  assert.equal(upsertRow.display_name, 'Ada');
+  assert.deepEqual(pendingCalls.get, ['ada@test.com']); // looked up by this email only
+  assert.equal(pendingCalls.cleared, 1);                 // ...and cleared (single-use)
+  mock.settle('profiles', 'single', { data: { display_name: 'Ada' }, error: null });
+  await p;
+});
+
+test('ensureProfile clears a non-matching pending name without using it (F-1)', async () => {
+  const state = baseState({ user: { id: 'B', email: 'bola@test.com', user_metadata: {} } });
+  // getPendingName returns null (email mismatch) but the stored value must still be cleared.
+  const { mgr, mock, pendingCalls } = makeAccount(state, memStorage(), 's1', { name: null });
+  const p = mgr.ensureProfile();
+  await tick();
+  const upsertRow = mock.pending.find(o => o.table === 'profiles').args;
+  assert.equal(upsertRow.display_name, 'bola');  // falls back to email prefix, NOT a foreign name
+  assert.equal(pendingCalls.cleared, 1);          // foreign/stale pending removed
+  mock.settle('profiles', 'single', { data: { display_name: 'bola' }, error: null });
+  await p;
 });
 
 // --- Finding 2: stale account data ------------------------------------------

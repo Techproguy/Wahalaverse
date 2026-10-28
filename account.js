@@ -27,11 +27,12 @@
   //   core,                      // WahalaCore (syncableActivities, titleCase)
   //   storage,                   // { getRecent(): [], setRecent(arr) } local queue
   //   getSessionId(): string,    // current guest browser-session id
-  //   getPendingName(): string,  // localStorage 'wv_pending_name' or null
+  //   getPendingName(email): string|null, // email-scoped pending display name
+  //   clearPendingName(),        // remove the stored pending display name
   //   render(),                  // re-render hook
   // }
   function create(deps) {
-    const { state, core, storage, getSessionId, getPendingName, render } = deps;
+    const { state, core, storage, getSessionId, getPendingName, clearPendingName, render } = deps;
 
     // Called synchronously by the caller the instant the signed-in identity
     // changes (sign-in as a different user, sign-out). Wipes everything tied to
@@ -52,8 +53,13 @@
       if (!state.user || !state.supabase) return;
       const uid = state.user.id;
       const epoch = state.authEpoch;
+      // Pending name is single-use and email-scoped: read it for THIS user's email,
+      // then clear the stored value regardless of match (consume on use; drop any
+      // stale/foreign one) so it can never seed a later, different account.
+      const pending = getPendingName ? getPendingName(state.user.email) : null;
+      if (clearPendingName) clearPendingName();
       const name = core.titleCase(
-        state.user.user_metadata?.display_name || getPendingName() ||
+        state.user.user_metadata?.display_name || pending ||
         state.user.email?.split('@')[0] || 'Wahala user');
       try {
         const { data, error } = await state.supabase.from('profiles')

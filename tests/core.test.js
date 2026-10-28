@@ -126,6 +126,24 @@ test('syncableActivities: a guest item from a DIFFERENT session is never auto-at
   assert.deepEqual(eligible, [3]); // only the current session's guest item
 });
 
+test('pendingNameFor returns the name only for a matching, fresh email (F-1)', () => {
+  const now = 1_000_000;
+  const raw = JSON.stringify({ email: 'Ada@Test.com', name: 'Ada', ts: now });
+  assert.equal(C.pendingNameFor(raw, 'ada@test.com', now + 1000), 'Ada'); // case-insensitive match
+  assert.equal(C.pendingNameFor(raw, 'bola@test.com', now + 1000), null); // different email -> no reuse
+});
+
+test('pendingNameFor rejects expired, malformed, and legacy records (F-1)', () => {
+  const now = 10_000_000;
+  const fresh = JSON.stringify({ email: 'a@test.com', name: 'A', ts: now });
+  assert.equal(C.pendingNameFor(fresh, 'a@test.com', now + C.PENDING_NAME_TTL_MS + 1), null); // expired
+  assert.equal(C.pendingNameFor('Ada', 'a@test.com', now), null);        // legacy bare string
+  assert.equal(C.pendingNameFor('{bad json', 'a@test.com', now), null);  // malformed
+  assert.equal(C.pendingNameFor(null, 'a@test.com', now), null);         // missing
+  assert.equal(C.pendingNameFor(fresh, '', now), null);                  // no email
+  assert.equal(C.pendingNameFor(JSON.stringify({ email: 'a@test.com', name: 'A' }), 'a@test.com', now), null); // no ts
+});
+
 test('escapeHtml neutralizes HTML metacharacters', () => {
   assert.equal(C.escapeHtml('<script>"&\'</script>'), '&lt;script&gt;&quot;&amp;&#39;&lt;/script&gt;');
   assert.equal(C.escapeHtml(null), '');
