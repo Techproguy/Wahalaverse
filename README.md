@@ -33,7 +33,7 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 28 tests: core logic + account state machine (mocked backend)
+npm run test:unit            # -> 35 tests: core logic + account + auth (mocked backend)
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
 npm run test:e2e             # -> 22 checks across Desktop Chrome + Pixel 7 viewports
@@ -49,7 +49,9 @@ validation (short name, unanswered questions); malformed guest links and cloud (
 links with no backend; phone viewport (bottom nav shows, no horizontal overflow, auth
 dialog focus). The unit suite also covers the account state machine (`account.js`) with a mocked,
 deferred-promise Supabase client: delayed profile responses, account switching, sign-out, failed
-refreshes, and cross-session guest data. Last run (2026-10-28): **28/28 unit, 22/22 E2E passing (50 total).**
+refreshes, and cross-session guest data, plus the Phase A auth flow (send link/code, verify OTP,
+error mapping) via a mocked auth client. Last run (2026-10-28): **35/35 unit, 22/22 E2E passing (57 total).**
+CI (GitHub Actions) runs both suites on every push/PR.
 
 **Untested paths (require live Supabase — Milestone 2):** email magic-link sign-in,
 cloud challenge storage/retrieval, real activity upload/RLS, and profile creation.

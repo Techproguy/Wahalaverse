@@ -2,9 +2,22 @@
 
 _Branch: `milestone-2-auth-backend` (off `main` @ `cdf635c`). Date: 2026-10-28._
 
-> **Status: PLAN ONLY.** No code in this milestone is implemented yet, no credentials are
-> connected, no migrations are run, no data is collected, nothing is deployed. This document is
-> submitted for ChatGPT + owner review. Implementation begins only after approval.
+> **Status: approved; Phase A in progress.** CI and Phase A (auth) are implemented on this branch
+> with automated tests; everything else below remains PLAN ONLY. No credentials are connected, no
+> migrations are run, no data is collected, nothing is deployed, PR #2 is not merged.
+
+## Review additions incorporated (2026-10-28)
+1. **GitHub Actions CI** — added (`.github/workflows/ci.yml`): a unit job and a Playwright job on
+   push/PR. **Done.**
+2. **Email OTP fallback** — implemented in Phase A (`auth.js` + two-stage dialog): the sign-in email
+   carries both a magic link and a 6-digit code, so a mobile user whose link opens in a different
+   browser can type the code into the browser where they started. **Done (code + mocked tests).**
+3. **Harden the challenge RPC** (Phase C) — `security definer`, **fixed `search_path`**, **minimal
+   returned columns** (no `owner_id`), and **restricted EXECUTE** (revoke from `public`, grant only
+   to `anon`/`authenticated`). Broad enumeration removed for both roles. Updated below.
+4. **Account deletion authz** (Phase D) — the deletion endpoint must **authenticate and authorize the
+   caller** (verify their JWT, act only on their own account); all privileged (service-role)
+   operations stay strictly server-side in an Edge Function. Updated below.
 
 M1 shipped guest-mode reliability + tests. M2 turns the **optional** cloud account on and makes it
 safe: real sign-in, strict per-account isolation verified against a live DB, secure challenge
@@ -37,6 +50,11 @@ Each gate maps to a phase below and to tests. Nothing goes live until all are ch
    (e.g. `http://localhost:8080/**`). The app already sends `emailRedirectTo = origin + pathname`.
 4. Confirm `supabase-js` `detectSessionInUrl` resolves the session on magic-link return, including
    the **new-tab mobile return** case (link opened in a different tab than it was requested).
+5. **OTP fallback (implemented):** `auth.js` exposes `sendSignInEmail` (link + 6-digit code) and
+   `verifyEmailOtp`; the dialog has a second stage where the user types the code. For this to deliver
+   a code, the Supabase email template must include the token (`{{ .Token }}`) — an owner dashboard
+   setting (see setup actions). Code is covered by deterministic mocked tests now; live code delivery
+   is verified once the test project + template are configured.
 
 **Verify / tests**
 - Manual: request link → receive → open on desktop and on a mobile browser → session established →
@@ -97,13 +115,21 @@ answers, created_at). The unguessable UUID does not help because no id filter is
    ```sql
    create function public.get_challenge(cid uuid)
    returns table (id uuid, owner_name text, title text, answers smallint[], template_version smallint, created_at timestamptz)
-   language sql security definer stable set search_path = public as $$
+   language sql
+   security definer
+   stable
+   set search_path = ''                      -- fixed, empty search_path (fully-qualified names below)
+   as $$
      select id, owner_name, title, answers, template_version, created_at
-     from public.challenges where id = cid;
+     from public.challenges where id = cid;  -- minimal columns: NO owner_id
    $$;
+   revoke all on function public.get_challenge(uuid) from public;   -- restricted EXECUTE
    grant execute on function public.get_challenge(uuid) to anon, authenticated;
    ```
-   This is the **only** way to read someone else's challenge — by id, one row, no listing.
+   Hardening: `security definer` + **fixed `search_path = ''`** (prevents search-path hijacking;
+   all names fully qualified), **minimal columns** (never returns `owner_id`), and **EXECUTE revoked
+   from `public`** then granted only to `anon`/`authenticated`. This is the **only** way to read
+   someone else's challenge — by id, one row, no listing.
 3. **App change:** `loadChallenge` switches the cloud path from
    `.from('challenges').select(...).eq('id',...)` to `.rpc('get_challenge', { cid })`. The
    own-challenges list in `refreshAccount` continues to use the owner-scoped table policy.
@@ -125,12 +151,16 @@ answers, created_at). The unguessable UUID does not help because no id filter is
 1. **Export (self-serve, no secret):** a signed-in user can download a JSON of their own
    `profile + activities + challenges` (all RLS-scoped reads the client can already make). Pure
    client assembly + a `Blob` download. Low risk.
-2. **Deletion:** deleting the auth user requires the admin API, which must **never** ship to the
-   browser. Plan: a **Supabase Edge Function** `delete-account` that (a) verifies the caller's JWT,
-   (b) calls `auth.admin.deleteUser(self)` using the service-role key **held only in the function's
-   server environment**. FK `on delete cascade` already removes the user's profile/challenges/
-   activities. Until the function is built/approved, provide a **documented operator-assisted**
-   deletion process + a contact channel (and do not enable public signup before one of these exists).
+2. **Deletion (authenticate + authorize the caller; privileged ops server-side only):** deleting the
+   auth user requires the admin API, which must **never** ship to the browser. Plan: a **Supabase Edge
+   Function** `delete-account` that (a) **authenticates** the caller by verifying their JWT
+   (`auth.getUser(jwt)`), (b) **authorizes** the action against **only that same user's own id** (the
+   function derives the target id from the verified token — it never accepts a user id from the
+   request body), (c) calls `auth.admin.deleteUser(self)` using the service-role key **held only in
+   the function's server environment** (never committed, never printed, never returned). FK
+   `on delete cascade` already removes the user's profile/challenges/activities. Until the function is
+   built/approved, provide a **documented operator-assisted** deletion process + a contact channel
+   (and do not enable public signup before one of these exists).
 3. UI entry points in "My corner": "Download my data" and "Delete my account" (with confirm).
 
 **Verify / tests**
@@ -198,6 +228,9 @@ included here for review — not assumed.)
    Edge Function env by the owner, not into the repo or chat).
 3. Authorize applying `supabase-schema.sql` + the Phase C/B migrations to the **test** project.
 4. Provide a **real test mailbox** for end-to-end magic-link testing.
+4b. **Enable the OTP code** in Supabase **Auth → Email Templates → Magic Link**: include the token
+   (e.g. `{{ .Token }}`) so the same email carries both the link and the 6-digit code the fallback
+   uses. (Dashboard setting; no code change.)
 5. Decide **deletion mechanism**: self-serve Edge Function (authorize creating it) **or** interim
    operator-assisted process + a published contact address.
 6. Provide **privacy.html content**: legal operator identity, privacy/support contact, hosting
