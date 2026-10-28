@@ -156,11 +156,15 @@ Policy: `create policy "Public challenge reading" ... for select to anon,authent
 - The schema file is a **draft, not applied to any live project**; these changes are inert until M2.
 
 ### 4. Do all reported tests pass on the final commit? — YES
-Final commit `5d3dc07`. **18 unit + 22 E2E = 40 pass, 0 fail.** (The 38 in the provisional review
-were 16 unit + 22 E2E; this adds 2 isolation regression tests.)
+At the time of the first audit response: the isolation fix landed in commit `5d3dc07`, and the
+branch tip (final commit) was `6968318`, with **18 unit + 22 E2E = 40 pass, 0 fail**. (Those two
+hashes refer to *different* commits — the fix vs. the branch tip — which the second review flagged;
+see the reconciliation note under "Second audit response" below.) The branch has since advanced for
+the second-round findings — current totals are **28 unit + 22 E2E = 50**. See the section below for
+the up-to-date final commit.
 ```
-$ node --test tests/core.test.js   # tests 18 | pass 18 | fail 0
-$ npx playwright test              # 22 passed (Desktop Chrome + Pixel 7)
+$ node --test tests/core.test.js tests/account.test.js   # tests 28 | pass 28 | fail 0
+$ npx playwright test                                     # 22 passed (Desktop Chrome + Pixel 7)
 ```
 
 ### 5. Downloadable diff + docs for independent review
@@ -180,3 +184,77 @@ See the generated bundle noted at the end of this file / provided to the owner: 
 | C | anon could read `owner_id` (creator account UUID) | Non-blocking (M1 guest mode doesn't touch DB) | Fixed (column-scoped grant) |
 | D | `using(true)` allows full-table enumeration of challenges | Non-blocking for M1 | Documented; RPC remediation recommended for M2 |
 | E | Rare: concurrent saveActivity during sync could be clobbered | Non-blocking | Fixed (flag-merge persist) |
+
+---
+
+# Second audit response — independent review (mocked-backend findings)
+
+The independent review passed the 18 unit tests, reproduced three further account-isolation issues
+with a mocked backend, and asked for deterministic async tests. All three are fixed, with new
+deterministic tests. **Architecture preserved** (same static, framework-free app); the account
+state machine was modularized into `account.js` exactly as `core.js` was, purely to make the async
+auth/db logic injectable and testable.
+
+### Finding 1 — STALE PROFILE RESPONSE (fixed)
+`ensureProfile()` now captures the user id **and** `authEpoch` once; after each `await` it checks
+`stillCurrent()` and **discards** any response whose identity no longer matches — so A's profile can
+never be written after a switch to B. `profile` is cleared immediately on identity change (via
+`clearAccountState()` in `onAuthStateChange` and the sign-out handler).
+Tests: _"ensureProfile discards a delayed response after the account changes"_, _"…applies the
+profile when identity is stable"_.
+
+### Finding 2 — STALE ACCOUNT DATA (fixed)
+On any identity change, `clearAccountState()` runs **immediately**, wiping `profile`,
+`cloudActivities`, `cloudChallenges` and resetting `loadingAccount`. `refreshAccount()` discards
+results if the account changed mid-fetch, and on **any failure** it clears `cloudActivities` /
+`cloudChallenges` — so a failed refresh for B can only ever show empty state, never A's data.
+Tests: _"refreshAccount discards results after the account changes mid-fetch"_, _"a FAILED refresh
+never exposes a previous account's data"_.
+
+### Finding 3 — GUEST ACTIVITY OWNERSHIP (fixed via session attribution)
+`localStorage` persists across sessions and people, so treating every `owner:null` record as "the
+current guest" was wrong. Chosen remedy: **per-browser-session attribution** (keeps the frictionless
+guest→signup sync for the *same* session, no extra prompt). Each guest activity is stamped with a
+`session` id (held in `sessionStorage`); `syncableActivities(items, userId, sessionId)` only treats
+an unowned item as syncable when `item.session === sessionId`. A previous session's, a legacy
+(no-session), or another person's guest history is therefore **never** auto-attached to a signed-in
+account. (If instead you prefer an explicit "import your guest history?" prompt, that's a small,
+additive change for M2 — noted, not assumed.)
+Tests: _"a guest item from a different session is never synced…"_, _"…from THIS session syncs and is
+stamped with the owner"_, plus the pure `syncableActivities` cases in `core.test.js`.
+
+### Deterministic async tests (new — `tests/account.test.js`)
+Driven by a **mock Supabase client** whose every query resolves through a **test-controlled deferred
+promise**, so delayed responses, account switching, sign-out, and failed refreshes are reproduced
+without real timing or a backend. 9 account tests + 19 core tests = **28 unit**; E2E unchanged at
+**22**. **Total 50, all passing.**
+
+### Commit-reference reconciliation
+The first audit response referenced two different hashes: `5d3dc07` (the isolation **fix** commit)
+and `6968318` (the branch **tip** at that moment). They were never meant to be the same commit, but
+the wording implied `5d3dc07` was "final". Corrected above. **Current final commit: see `git log`
+tip of `milestone-1-reliability`** (the bundle's `COMMITS.txt` always lists the exact tip used to
+generate that patch).
+
+### Milestone 2 — enumeration requirement retained (expanded)
+Confirmed and carried into M2: **remove broad challenge enumeration for BOTH anon AND authenticated**
+before enabling production storage. The current `using(true)` policy lets *any* signed-in user also
+list the whole `challenges` table (not just anon). Planned M2 remediation: replace table-level SELECT
+with a `SECURITY DEFINER` RPC `get_challenge(id)` (single-row, by id) and drop the broad table
+grants for both roles, so a user can read a challenge **by link** but cannot enumerate the table.
+This is documented in `supabase-schema.sql` and tracked here; it is **not** implemented in M1
+(no live DB, no credentials, M2 not started).
+
+### Scope / safety for this round
+No merge, no deploy, no credentials, Milestone 2 not started. Changes are minimal and confined to:
+`core.js` (sync filter signature), new `account.js` (extracted logic), `app.js` (wiring + session
+stamp + immediate clear on identity change), `index.html` (load account.js), `supabase-schema.sql`
+(doc only), and tests/docs. Guest flows unchanged (22/22 E2E still pass).
+
+## Findings classification — round 2
+| # | Finding | Severity | Status |
+|---|---------|----------|--------|
+| 1 | Stale profile response applied after identity change | **Blocking** | Fixed (epoch+uid guard, immediate clear) |
+| 2 | Stale account data survives switch / failed refresh | **Blocking** | Fixed (immediate clear + clear-on-error) |
+| 3 | Guest `owner:null` silently attached across sessions | **Blocking** | Fixed (per-session attribution) |
+| D′ | `using(true)` enumeration for anon **and** authenticated | Non-blocking for M1 | Retained as M2 requirement (RPC) |

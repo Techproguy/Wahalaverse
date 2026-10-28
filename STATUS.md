@@ -42,7 +42,23 @@ reading and exercising the code, not by assuming placeholders are complete.
   exposed to unauthenticated reads. Draft schema, not applied to any live project.
 
 ## Tests
-- **18 unit** (`npm run test:unit`, node --test) + **22 E2E** (`npm run test:e2e`, Playwright
-  Desktop Chrome + Pixel 7) = **40 passing, 0 failing** on the final commit.
+- **28 unit** (`npm run test:unit`, node --test — 19 `core` + 9 `account`) + **22 E2E**
+  (`npm run test:e2e`, Playwright Desktop Chrome + Pixel 7) = **50 passing, 0 failing** on the final commit.
+- The 9 `account` tests are deterministic: they drive `account.js` with a mocked Supabase client
+  using test-controlled deferred promises (delayed profile, account switch, sign-out, failed refresh,
+  cross-session guest data).
+
+## Account isolation (second review round — fixed)
+- **Stale profile / stale account data:** `ensureProfile` / `refreshAccount` capture the user id +
+  an auth generation and discard any response that arrives after the identity changed; account state
+  is cleared the instant identity changes, and a failed refresh clears data rather than exposing a
+  previous account's. Logic lives in `account.js` (dependency-injected for testing).
+- **Guest activity ownership:** unowned guest activities are attributed to the current browser
+  session (`sessionStorage`), so another session's / person's guest history is never auto-synced.
+
+## Milestone 2 requirement (carried forward)
+- **Remove broad challenge enumeration for BOTH anon and authenticated** before enabling production
+  storage (planned: a `SECURITY DEFINER` `get_challenge(id)` RPC + dropping the broad table SELECT
+  grants). Documented in `supabase-schema.sql`; not implemented in M1.
 
 See `REVIEW_NOTES.md` for the full change summary, audit response, and test results.

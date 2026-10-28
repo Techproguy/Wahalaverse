@@ -32,8 +32,8 @@ need **no Supabase credentials**.
 npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
-# Fast pure-logic unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 18 tests: link encode/decode, scoring, sim math, privacy filter
+# Fast unit tests (Node built-in runner, no browser)
+npm run test:unit            # -> 28 tests: core logic + account state machine (mocked backend)
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
 npm run test:e2e             # -> 22 checks across Desktop Chrome + Pixel 7 viewports
@@ -47,7 +47,9 @@ fresh browser context → complete → scorecard → "create your own" CTA; a fu
 Naija round → outcome → restart; navigation + browser back/forward (popstate); input
 validation (short name, unanswered questions); malformed guest links and cloud (`?c=`)
 links with no backend; phone viewport (bottom nav shows, no horizontal overflow, auth
-dialog focus). Last run (2026-10-28): **18/18 unit, 22/22 E2E passing (40 total).**
+dialog focus). The unit suite also covers the account state machine (`account.js`) with a mocked,
+deferred-promise Supabase client: delayed profile responses, account switching, sign-out, failed
+refreshes, and cross-session guest data. Last run (2026-10-28): **28/28 unit, 22/22 E2E passing (50 total).**
 
 **Untested paths (require live Supabase — Milestone 2):** email magic-link sign-in,
 cloud challenge storage/retrieval, real activity upload/RLS, and profile creation.
@@ -99,7 +101,9 @@ Supabase Auth stores account email separately. Guest links encode the quiz answe
 
 - `index.html` — application shell and meta tags.
 - `styles.css` — responsive dark visual design.
-- `app.js` — all experiences, sharing, local activity, optional sign-in and sync.
+- `app.js` — UI, navigation, experiences, sharing, local activity, optional sign-in wiring.
+- `core.js` — pure, framework-free logic (challenge encode/decode, scoring, sim math, sync filter); shared by the app and the Node tests.
+- `account.js` — signed-in profile/activity/challenge state machine (dependency-injected so it is deterministically testable with a mocked backend).
 - `config.js` — public credentials (blank for local demo).
 - `supabase-schema.sql` — PostgreSQL schema and row-level permissions.
 - `privacy.html` — **draft**, requires operator edits prior to collecting live personal data.
