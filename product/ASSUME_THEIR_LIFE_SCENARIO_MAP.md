@@ -14,6 +14,12 @@ Role pack: **Public tech entrepreneur.** Horizon: **12 weeks.** ~10 meaningful d
 interwoven arcs** (Supply/Launch, Liquidity/Financing, Media/Reputation), with visible delayed,
 cross-domain consequences.
 
+> 🎭 **Everything below is ILLUSTRATIVE or ❓ OPEN, not approved:** the fictional profile, the 12-week /
+> ~10-decision horizon (the founder register says "12×12 is a useful example, **not** a universally
+> approved format"), every state variable + starting number, all event text and deltas, the event
+> graph, the scoring thresholds and 6 endings, and the engine/JSON architecture. This map demonstrates
+> the *required causal structure*; it is **not** settled content, balance, or an engine decision.
+
 ---
 
 ## 1. Situation Brief (the inherited situation, not a title)
@@ -174,7 +180,7 @@ flowchart TD
 
 ---
 
-## 3. Multiple plausible endings (keyed to end-state, with explanations)
+## 3. Multiple plausible endings (keyed to end-state, with explanations) — 🎭 illustrative scoring
 Endings are computed from the **final state + fired seeds**, and each comes with a *trace* of the 3–5
 pivotal decisions that produced it (never a single die-roll).
 
@@ -223,7 +229,7 @@ each traded something (speed vs trust, cash vs control).
   real builds use sourced baselines + hypothetical labeling).
 - Guest-first mobile web + sharing retained ✅ (a run is playable without sign-up; share card at the end).
 
-## 6. Engine notes (for the later feasibility review — not approved)
+## 6. Engine notes (🎭 proposed architecture for the later feasibility review — NOT approved)
 - Represent the graph as **JSON event packs** (`events[]`, each with `preconditions`, `trigger`,
   `choices[]` → `{deltas, sets, next, seed}`), plus a small rule core that advances state, fires due
   `seeds`, and selects the next event by matching preconditions against state+history.
