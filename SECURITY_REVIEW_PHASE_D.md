@@ -1,8 +1,29 @@
 # Security review — Milestone 2, Phase D
 
-_Commit `9ca6503` on `milestone-2-auth-backend`. Scope: self-service data export +
-account deletion, RPC-hardening evaluation, sign-out scope documentation. No
-migrations applied, no Edge Function deployed, no production change, PR #2 not merged._
+_Scope: self-service data export + account deletion, RPC-hardening evaluation, sign-out
+scope documentation. No migrations applied, no Edge Function deployed, no production
+change, PR #2 not merged._
+
+## Correction round (independent review findings D-1…D-4) — all fixed
+- **D-1 (CORS):** the Edge Function logic now answers an `OPTIONS` preflight with `204` and attaches
+  CORS headers (`Access-Control-Allow-Origin/-Methods/-Headers`, `Vary: Origin`) to **every**
+  response. Origin is configurable via `SITE_URL` (defaults to `*`). Browser-style tests cover the
+  preflight and header presence.
+- **D-2 (strict success):** `account.deleteAccount()` now returns success **only** on an explicit
+  `{ok:true}`; `null`/`{}`/`{ok:false}`/`{ok:'yes'}`/missing are all failures. Regression-tested.
+- **D-3 (stop-on-error):** the function deletes app rows first and **halts immediately** on any
+  row-deletion error or thrown exception — the auth user is **not** deleted, so the account stays
+  available for a retry. The client receives a generic `deletion-failed`; the real DB error is
+  logged **server-side only**. Each stage (row error, thrown row error, auth-delete error, success)
+  is tested with **mocked admin operations**.
+- **D-4 (pagination):** `exportData` now fully paginates activities and challenges with a stable
+  order (`created_at desc, id desc`) via `fetchAllRows`, fails on any page error (no partial export),
+  and is tested past 1000 rows.
+- **Destructive-op guards:** delete and export are guarded against rapid double-submission (busy
+  flags + disabled buttons) and against identity changes mid-operation (captured `authEpoch`; a
+  switch discards the result and never acts on the new user).
+
+---
 
 ## 1. Account deletion — authorization model (requirements 1–4)
 **Design:** deletion is performed by the `delete-account` **Edge Function** (server-side), never in

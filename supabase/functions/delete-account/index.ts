@@ -1,64 +1,57 @@
-// WahalaVerse — `delete-account` Supabase Edge Function (Deno).
+// WahalaVerse — `delete-account` Supabase Edge Function (Deno entrypoint).
 //
-// Self-service account deletion, done SERVER-SIDE so the service-role key is never
-// shipped to the browser. Security model:
-//   • The caller's identity is taken ONLY from their verified JWT (auth.getUser).
-//     The request body is ignored — a client-supplied user id is never trusted.
-//   • The service-role key lives only in this function's environment
-//     (SUPABASE_SERVICE_ROLE_KEY), set by the owner in the Supabase dashboard.
-//   • Deletes are idempotent and keyed by the verified uid, so retries are safe and
-//     partial failures are reported (not silently swallowed, never a false success).
+// Thin wiring around ./logic.mjs (which holds the testable request handling: CORS,
+// JWT authorization, stop-on-error deletion). The service-role key lives ONLY in
+// this function's environment and is never shipped to the browser, committed, or
+// returned in a response.
 //
 // Deploy (TEST project only, with approval):
 //   supabase functions deploy delete-account
-//   supabase secrets set SUPABASE_SERVICE_ROLE_KEY=... (TEST project service role)
+//   supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<TEST project service_role key>
+//   supabase secrets set SITE_URL=<your app origin>   # CORS allow-origin (optional; defaults to *)
 // SUPABASE_URL / SUPABASE_ANON_KEY are injected by the platform.
 //
-// NOTE: this file is NOT deployed in Phase D (no backend deployment). It is the
-// reviewed implementation to deploy later, after approval.
+// NOT deployed in Phase D. This is the reviewed implementation for later.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { handleDeleteAccount } from './logic.mjs';
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-Deno.serve(async (req: Request): Promise<Response> => {
-  if (req.method !== 'POST') return json({ ok: false, error: 'method-not-allowed' }, 405);
-
-  const authHeader = req.headers.get('Authorization') || '';
-  const jwt = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!jwt) return json({ ok: false, error: 'missing-token' }, 401);
-
+Deno.serve((req: Request) => {
   const url = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'); // server-side only
-  if (!url || !anonKey || !serviceKey) return json({ ok: false, error: 'server-misconfigured' }, 500);
+  const allowOrigin = Deno.env.get('SITE_URL') || '*';
 
-  // 1) AUTHORIZE: derive the user id from the verified token, not from the body.
-  const asUser = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${jwt}` } } });
-  const { data: { user }, error: authErr } = await asUser.auth.getUser();
-  if (authErr || !user) return json({ ok: false, error: 'invalid-token' }, 401);
-  const uid = user.id;
+  if (!url || !anonKey || !serviceKey) {
+    return handleDeleteAccount(req, {
+      allowOrigin,
+      getUserFromToken: async () => ({ error: 'server-misconfigured' }),
+      deleteAppRows: async () => ({ error: 'server-misconfigured' }),
+      deleteAuthUser: async () => ({ error: 'server-misconfigured' }),
+    });
+  }
 
-  // 2) DELETE with the service role. App rows first (idempotent by uid), then the
-  //    auth user (FK ON DELETE CASCADE would also remove them, but doing it
-  //    explicitly makes partial failures observable and retries safe).
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const errors: string[] = [];
-  for (const [table, col] of [['activities', 'user_id'], ['challenges', 'owner_id'], ['profiles', 'user_id']] as const) {
-    const { error } = await admin.from(table).delete().eq(col, uid);
-    if (error) errors.push(`${table}: ${error.message}`);
-  }
-  const { error: delErr } = await admin.auth.admin.deleteUser(uid);
-  if (delErr) errors.push(`auth: ${delErr.message}`);
 
-  if (errors.length) {
-    // Partial failure: report it. Safe to retry (all deletes are idempotent by uid).
-    return json({ ok: false, error: 'partial-failure', details: errors }, 500);
-  }
-  return json({ ok: true, deleted: uid });
+  return handleDeleteAccount(req, {
+    allowOrigin,
+    // Verify the caller's identity from their token.
+    getUserFromToken: async (jwt: string) => {
+      const asUser = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${jwt}` } } });
+      const { data, error } = await asUser.auth.getUser();
+      return { user: data?.user, error };
+    },
+    // Delete app rows sequentially; STOP at the first failing table (returns {error}).
+    deleteAppRows: async (uid: string) => {
+      for (const [table, col] of [['activities', 'user_id'], ['challenges', 'owner_id'], ['profiles', 'user_id']] as const) {
+        const { error } = await admin.from(table).delete().eq(col, uid);
+        if (error) return { error };
+      }
+      return {};
+    },
+    deleteAuthUser: async (uid: string) => {
+      const { error } = await admin.auth.admin.deleteUser(uid);
+      return { error };
+    },
+  });
 });

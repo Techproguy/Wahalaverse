@@ -31,6 +31,24 @@
   //   clearPendingName(),        // remove the stored pending display name
   //   render(),                  // re-render hook
   // }
+  // Fully paginate a PostgREST query. `makeQuery(from,to)` must return an awaitable
+  // query for a stable-ordered slice. Fails (throws) on ANY page error — never
+  // returns a partial result. Stops only when a page is shorter than pageSize (the
+  // true last page), so > pageSize rows are read completely (D-4).
+  async function fetchAllRows(makeQuery, pageSize = 1000) {
+    const all = [];
+    let from = 0;
+    for (;;) {
+      const { data, error } = await makeQuery(from, from + pageSize - 1);
+      if (error) throw error;
+      const rows = data || [];
+      all.push(...rows);
+      if (rows.length < pageSize) break;
+      from += pageSize;
+    }
+    return all;
+  }
+
   function create(deps) {
     const { state, core, storage, getSessionId, getPendingName, clearPendingName, render } = deps;
 
@@ -183,21 +201,30 @@
       const uid = state.user.id;
       const epoch = state.authEpoch;
       try {
-        const [prof, acts, chs] = await Promise.all([
+        // Stable ordering (created_at desc, id desc tiebreaker) so range-based paging
+        // is reliable even across equal timestamps. All pages are fetched; any page
+        // error aborts the whole export (no partial download).
+        const [prof, activities, challenges] = await Promise.all([
           state.supabase.from('profiles').select('user_id,display_name,created_at').eq('user_id', uid),
-          state.supabase.from('activities').select('id,kind,details,created_at').order('created_at', { ascending: false }),
-          state.supabase.from('challenges').select('id,title,answers,template_version,created_at').eq('owner_id', uid).order('created_at', { ascending: false }),
+          fetchAllRows((from, to) => state.supabase.from('activities')
+            .select('id,kind,details,created_at')
+            .order('created_at', { ascending: false }).order('id', { ascending: false })
+            .range(from, to)),
+          fetchAllRows((from, to) => state.supabase.from('challenges')
+            .select('id,title,answers,template_version,created_at').eq('owner_id', uid)
+            .order('created_at', { ascending: false }).order('id', { ascending: false })
+            .range(from, to)),
         ]);
         if (!stillCurrent(uid, epoch)) return { ok: false, error: 'superseded' };
-        if (prof.error || acts.error || chs.error) throw (prof.error || acts.error || chs.error);
+        if (prof.error) throw prof.error;
         return {
           ok: true,
           data: {
             exported_at_note: 'Stamp the export time client-side when saving.',
             account: { user_id: uid, email: state.user.email || null },
             profile: (prof.data && prof.data[0]) || null,
-            activities: acts.data || [],
-            challenges: chs.data || [],
+            activities,
+            challenges,
           },
         };
       } catch (err) {
@@ -216,8 +243,10 @@
       try {
         const { data, error } = await state.supabase.functions.invoke('delete-account', { method: 'POST' });
         if (error) throw error;
-        if (data && data.ok === false) return { ok: false, error: data.error || 'delete-failed', details: data.details };
-        return { ok: true };
+        // Accept success ONLY on an explicit {ok:true}. A null/missing/malformed
+        // response is treated as a failure, never an implied success (D-2).
+        if (data && data.ok === true) return { ok: true };
+        return { ok: false, error: (data && data.error) || 'unexpected-response' };
       } catch (err) {
         console.warn('Delete account:', err);
         return { ok: false, error: err };
@@ -227,5 +256,5 @@
     return { clearAccountState, ensureProfile, syncActivities, refreshAccount, updateProfile, exportData, deleteAccount };
   }
 
-  return { create };
+  return { create, fetchAllRows };
 });

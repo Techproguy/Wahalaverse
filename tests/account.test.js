@@ -37,6 +37,7 @@ function createMockSupabase() {
       b.single = () => term(table, 'single', b._row);
       b.limit = (n) => term(table, 'limit', { table, n, eq: b._eq });
       b.delete = () => { b._del = true; return b; };
+      b.range = (f, t) => { b._range = { f, t }; return b; };
       // Thenable: awaiting the builder WITHOUT a terminal (e.g. select().eq().order())
       // resolves a 'select' op — mirrors PostgREST's awaitable query builder.
       b.then = (onF, onR) => term(table, b._del ? 'delete' : 'select', b._eq).then(onF, onR);
@@ -297,6 +298,39 @@ test('exportData reports failure if any query errors (no partial export)', async
   assert.equal(res.ok, false);
 });
 
+test('fetchAllRows paginates past 1000 and fails on any page error (D-4)', async () => {
+  const pages = [
+    Array.from({ length: 1000 }, (_, i) => ({ id: i })),       // full page -> keep going
+    Array.from({ length: 1000 }, (_, i) => ({ id: 1000 + i })), // full page -> keep going
+    Array.from({ length: 234 }, (_, i) => ({ id: 2000 + i })),  // short page -> stop
+  ];
+  let call = 0;
+  const ranges = [];
+  const all = await Account.fetchAllRows((from, to) => { ranges.push([from, to]); return Promise.resolve({ data: pages[call++] || [], error: null }); });
+  assert.equal(all.length, 2234, 'reads every page beyond 1000');
+  assert.deepEqual(ranges[0], [0, 999]);
+  assert.deepEqual(ranges[1], [1000, 1999]);
+  assert.deepEqual(ranges[2], [2000, 2999]);
+  // Any page error aborts (no partial result).
+  await assert.rejects(() => Account.fetchAllRows(() => Promise.resolve({ data: null, error: { message: 'boom' } })));
+});
+
+test('exportData reads ALL pages of activities/challenges (>1000)', async () => {
+  const state = baseState({ user: { id: 'A', email: 'a@x.com' } });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const p = mgr.exportData();
+  await tick();
+  mock.settle('profiles', 'select', { data: [{ user_id: 'A', display_name: 'Ada' }], error: null });
+  // activities: page 1 is full (1000) -> a second page is requested.
+  mock.settle('activities', 'select', { data: Array.from({ length: 1000 }, (_, i) => ({ id: 'a' + i })), error: null });
+  mock.settle('challenges', 'select', { data: [{ id: 'c1' }], error: null });
+  await tick();
+  mock.settle('activities', 'select', { data: [{ id: 'a1000' }], error: null }); // short page -> stop
+  const res = await p;
+  assert.equal(res.ok, true);
+  assert.equal(res.data.activities.length, 1001, 'both activity pages included');
+});
+
 // --- Phase D: account deletion ----------------------------------------------
 test('deleteAccount invokes the server function with NO client-supplied user id', async () => {
   const state = baseState({ user: { id: 'A' } });
@@ -330,6 +364,27 @@ test('deleteAccount handles a transport error without claiming success', async (
   mock.settle('fn:delete-account', 'invoke', { data: null, error: { message: 'network down' } });
   const res = await p;
   assert.equal(res.ok, false);
+});
+
+test('deleteAccount treats null/malformed responses as FAILURE, not success (D-2)', async () => {
+  for (const bad of [null, {}, { ok: false }, { ok: 'yes' }, { ok: 1 }, { status: 'done' }]) {
+    const state = baseState({ user: { id: 'A' } });
+    const { mgr, mock } = makeAccount(state, memStorage());
+    const p = mgr.deleteAccount();
+    await tick();
+    mock.settle('fn:delete-account', 'invoke', { data: bad, error: null });
+    const res = await p;
+    assert.equal(res.ok, false, `response ${JSON.stringify(bad)} must NOT be treated as success`);
+  }
+});
+
+test('deleteAccount succeeds ONLY on an explicit {ok:true} (D-2)', async () => {
+  const state = baseState({ user: { id: 'A' } });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const p = mgr.deleteAccount();
+  await tick();
+  mock.settle('fn:delete-account', 'invoke', { data: { ok: true }, error: null });
+  assert.equal((await p).ok, true);
 });
 
 // --- clearAccountState (B-1) -------------------------------------------------
