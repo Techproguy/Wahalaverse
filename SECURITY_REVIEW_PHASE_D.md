@@ -22,6 +22,16 @@ change, PR #2 not merged._
 - **Destructive-op guards:** delete and export are guarded against rapid double-submission (busy
   flags + disabled buttons) and against identity changes mid-operation (captured `authEpoch`; a
   switch discards the result and never acts on the new user).
+- **D-5 (server-side JWT verification):** the Edge Function now follows Supabase's documented pattern
+  and calls `asUser.auth.getUser(jwt)` with the token passed **explicitly** (a server-side client has
+  no session, so argument-less `getUser()` would not verify the caller). Dependency construction is
+  factored into `deps.mjs` so the **real wiring** (not just the injected handler) is unit-tested: a
+  test proves the bearer JWT is forwarded explicitly to `getUser`, and end-to-end wiring tests confirm
+  an invalid/missing JWT returns 401 with **no** privileged deletion, while a valid JWT deletes app
+  rows then the auth user.
+- **CORS origin for live ops (D-5 §5):** `SITE_URL` MUST be set to the exact app origin before
+  enabling live operations — **do not rely on wildcard (`*`) CORS**. The function defaults to `*` only
+  for local/unset dev; production/TEST live use sets `SITE_URL`. See `MIGRATIONS.md`.
 
 ---
 

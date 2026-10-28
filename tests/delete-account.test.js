@@ -8,6 +8,23 @@ const assert = require('node:assert/strict');
 
 let L; // loaded lazily (ESM)
 async function logic() { return L || (L = await import('../supabase/functions/delete-account/logic.mjs')); }
+let D;
+async function depsMod() { return D || (D = await import('../supabase/functions/delete-account/deps.mjs')); }
+
+// Mock `createClient` recording how the function is wired (D-5: real wiring test).
+function mockCreateClient(behavior) {
+  return (u, key, opts) => ({
+    _url: u, _key: key, _opts: opts,
+    auth: {
+      getUser: async (jwt) => { behavior.getUserCalls.push({ jwt, header: opts && opts.global && opts.global.headers && opts.global.headers.Authorization }); return behavior.getUserResult; },
+      admin: { deleteUser: async (uid) => { behavior.adminDeletes.push(uid); return behavior.adminDeleteResult || { error: null }; } },
+    },
+    from: (t) => ({ delete: () => ({ eq: async (c, v) => { behavior.rowDeletes.push({ t, c, v }); return behavior.rowResult || { error: null }; } }) }),
+  });
+}
+function freshBehavior(over = {}) {
+  return Object.assign({ getUserCalls: [], adminDeletes: [], rowDeletes: [], getUserResult: { data: { user: { id: 'U1' } }, error: null } }, over);
+}
 
 function req(method, { token } = {}) {
   const headers = {};
@@ -99,4 +116,62 @@ test('success path: rows then auth user, 200 {ok:true}', async () => {
   assert.deepEqual(body, { ok: true, deleted: 'U1' });
   assert.equal(d.calls.rows, 1);
   assert.equal(d.calls.auth, 1);
+});
+
+// --- D-5: real Edge Function wiring (buildDeps), not only the injected handler ---
+test('D-5: getUserFromToken passes the bearer JWT EXPLICITLY to getUser', async () => {
+  const { buildDeps } = await depsMod();
+  const behavior = freshBehavior();
+  const d = buildDeps({ createClient: mockCreateClient(behavior), url: 'U', anonKey: 'ANON', serviceKey: 'SERVICE', allowOrigin: 'https://app.test' });
+  const r = await d.getUserFromToken('JWT123');
+  assert.equal(behavior.getUserCalls.length, 1);
+  assert.equal(behavior.getUserCalls[0].jwt, 'JWT123', 'getUser(jwt) receives the token explicitly (not undefined)');
+  assert.equal(behavior.getUserCalls[0].header, 'Bearer JWT123');
+  assert.equal(r.user.id, 'U1');
+  assert.equal(d.allowOrigin, 'https://app.test');
+});
+
+test('D-5 wiring: an invalid JWT returns 401 and triggers NO privileged deletion', async () => {
+  const { handleDeleteAccount } = await logic();
+  const { buildDeps } = await depsMod();
+  const behavior = freshBehavior({ getUserResult: { data: { user: null }, error: { message: 'bad jwt' } } });
+  const d = buildDeps({ createClient: mockCreateClient(behavior), url: 'U', anonKey: 'ANON', serviceKey: 'SERVICE', allowOrigin: '*' });
+  const res = await handleDeleteAccount(req('POST', { token: 'bad' }), d);
+  assert.equal(res.status, 401);
+  assert.equal(behavior.rowDeletes.length, 0, 'no row deletion for an invalid token');
+  assert.equal(behavior.adminDeletes.length, 0, 'no auth-user deletion for an invalid token');
+});
+
+test('D-5 wiring: a missing JWT returns 401 and never calls getUser/admin', async () => {
+  const { handleDeleteAccount } = await logic();
+  const { buildDeps } = await depsMod();
+  const behavior = freshBehavior();
+  const d = buildDeps({ createClient: mockCreateClient(behavior), url: 'U', anonKey: 'ANON', serviceKey: 'SERVICE', allowOrigin: '*' });
+  const res = await handleDeleteAccount(req('POST'), d); // no Authorization header
+  assert.equal(res.status, 401);
+  assert.equal(behavior.getUserCalls.length, 0);
+  assert.equal(behavior.adminDeletes.length, 0);
+});
+
+test('D-5 wiring: a valid JWT deletes app rows then the auth user via real deps', async () => {
+  const { handleDeleteAccount } = await logic();
+  const { buildDeps } = await depsMod();
+  const behavior = freshBehavior();
+  const d = buildDeps({ createClient: mockCreateClient(behavior), url: 'U', anonKey: 'ANON', serviceKey: 'SERVICE', allowOrigin: '*' });
+  const res = await handleDeleteAccount(req('POST', { token: 'good' }), d);
+  assert.equal(res.status, 200);
+  assert.equal(behavior.getUserCalls[0].jwt, 'good', 'verification used the explicit token');
+  assert.deepEqual(behavior.rowDeletes.map(r => r.t), ['activities', 'challenges', 'profiles']);
+  assert.deepEqual(behavior.adminDeletes, ['U1']);
+});
+
+test('D-5 wiring: a row-delete error stops before the auth user (via real deps)', async () => {
+  const { handleDeleteAccount } = await logic();
+  const { buildDeps } = await depsMod();
+  const behavior = freshBehavior({ rowResult: { error: { message: 'db down' } } });
+  const d = buildDeps({ createClient: mockCreateClient(behavior), url: 'U', anonKey: 'ANON', serviceKey: 'SERVICE', allowOrigin: '*' });
+  const res = await handleDeleteAccount(req('POST', { token: 'good' }), d);
+  assert.equal(res.status, 500);
+  assert.equal(behavior.rowDeletes.length, 1, 'stopped at the first failing table');
+  assert.equal(behavior.adminDeletes.length, 0, 'auth user NOT deleted');
 });

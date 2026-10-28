@@ -33,7 +33,7 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 72 tests: core/account/auth/challenges/delete-account (mocked backend)
+npm run test:unit            # -> 77 tests: core/account/auth/challenges/delete-account (mocked backend)
 npm run test:rls             # -> two-account RLS probes; SKIPS unless TEST-project env vars are set
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
@@ -53,7 +53,7 @@ deferred-promise Supabase client: delayed profile responses, account switching, 
 refreshes, and cross-session guest data, plus the Phase A auth flow (send link/code, verify OTP,
 error mapping) via a mocked auth client, plus pending-name isolation, auth
 state-hygiene (stale-response invalidation), and secure profile update. Last run
-(2026-10-28): **72/72 unit, 22/22 E2E passing (94 total)**; the RLS integration
+(2026-10-28): **77/77 unit, 22/22 E2E passing (99 total)**; the RLS integration
 suite is prepared and skips without a TEST project.
 CI (GitHub Actions) runs both suites on every push/PR.
 

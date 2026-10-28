@@ -44,11 +44,18 @@ Milestone-1 baseline (the old `using(true)` enumerable challenge policy).
 supabase functions deploy delete-account
 # Service-role key stays ONLY in the function's env (set by the owner; never committed):
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<TEST project service_role key>
+# REQUIRED for live operations — exact app origin for CORS (do NOT rely on wildcard):
+supabase secrets set SITE_URL=<your exact app origin, e.g. https://wahalaverse.vercel.app>
 # SUPABASE_URL and SUPABASE_ANON_KEY are injected by the platform.
 ```
+**CORS (required for live ops):** `SITE_URL` sets `Access-Control-Allow-Origin`. The wildcard `*` is
+only the local/dev default when `SITE_URL` is unset — **set `SITE_URL` before enabling live use**.
+**JWT verification:** the function calls `getUser(jwt)` with the caller's token **explicitly**
+(Supabase Edge Function pattern); a missing/invalid token → 401 and performs **no** deletion.
 Verify: a signed-in user calling it (JWT attached by supabase-js) deletes **only their own** account;
-a missing/invalid token → 401; non-POST → 405; a partial failure returns `{ok:false, details:[…]}`
-(HTTP 500) and is safe to retry. See `SECURITY_REVIEW_PHASE_D.md`.
+missing/invalid token → 401; non-POST → 405; a row-deletion error stops before the auth user
+(account retained, safe to retry), returning a generic `deletion-failed` (details logged server-side).
+See `SECURITY_REVIEW_PHASE_D.md`.
 
 ## Safety notes
 - Never put the `service_role`/secret key in the repo, the browser, or CI. Migrations are run
