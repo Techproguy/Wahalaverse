@@ -33,7 +33,7 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast pure-logic unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 16 tests: link encode/decode, scoring, sim math, privacy filter
+npm run test:unit            # -> 18 tests: link encode/decode, scoring, sim math, privacy filter
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
 npm run test:e2e             # -> 22 checks across Desktop Chrome + Pixel 7 viewports
@@ -47,7 +47,7 @@ fresh browser context → complete → scorecard → "create your own" CTA; a fu
 Naija round → outcome → restart; navigation + browser back/forward (popstate); input
 validation (short name, unanswered questions); malformed guest links and cloud (`?c=`)
 links with no backend; phone viewport (bottom nav shows, no horizontal overflow, auth
-dialog focus). Last run (2026-10-28): **16/16 unit, 22/22 E2E passing.**
+dialog focus). Last run (2026-10-28): **18/18 unit, 22/22 E2E passing (40 total).**
 
 **Untested paths (require live Supabase — Milestone 2):** email magic-link sign-in,
 cloud challenge storage/retrieval, real activity upload/RLS, and profile creation.

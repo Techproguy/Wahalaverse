@@ -96,3 +96,87 @@ activity upload are intentionally **unverified** without a live Supabase project
 reliability + tests) is complete and green. Recommended next step: owner provisions a Supabase
 project + shares public keys, then M2 verifies auth/storage/RLS with test accounts and builds the
 deletion/export flow — on a new branch, with its own tests.
+
+---
+
+# Audit response — ChatGPT M1 review (2026-10-28)
+
+Re-auditing the first privacy fix adversarially surfaced two **real concurrency bugs in my own
+code** that the original single-threaded reasoning missed. Both are now fixed. Summary of each
+review item:
+
+### 1. Cross-account isolation under delayed network / account switching / sign-out / re-login
+**Finding A — BLOCKING (fixed): account switch mid-sync uploaded items under the wrong account.**
+The old `syncActivities()` read `state.user.id` *fresh on every loop iteration and after every
+`await`*. If account A→B switched while an `insert` was in flight (easy under a slow network), the
+next iteration inserted A's queued item with `user_id = B`. That is a true cross-account leak.
+
+**Finding B — BLOCKING (fixed): sign-out mid-sync resurrected the cleared queue.** Sign-out cleared
+`localStorage`, but an in-flight sync had captured the pre-clear array and wrote it back via
+`setRecent(data)` — re-populating the cleared guest items, which then uploaded to the next account
+on re-login.
+
+**Fix:** `syncActivities()` now captures the user id **and** an auth-generation counter
+(`state.authEpoch`) **once**, and uses the captured id for every insert. After each `await` and
+before the final persist it bails if `authEpoch` changed. The final persist is a **flag-merge
+against the current queue** (stamp only ids we actually synced), so it can neither resurrect a
+cleared queue nor clobber a concurrently-added activity. Sign-out bumps `authEpoch` and clears the
+queue **before** the async `signOut()` round-trip; `onAuthStateChange` bumps it on any identity
+change. `refreshAccount()` also discards results if the account changed mid-fetch.
+
+Delayed network / same user, and re-login as the same user: re-upload is idempotent (unique `id`
+primary key → `23505` is treated as success).
+
+### 2. Can the local queue expose one account's records to another? — NO (after the fix)
+Guarantees, each covered by a unit test (`tests/core.test.js`):
+- Items are owner-stamped; `syncableActivities()` only yields unsynced items that are unowned
+  (guest, this session) or owned by the current user — **never another user's**.
+- A guest item, once synced to A, is stamped `owner=A, synced=true` and is thereafter eligible for
+  *no one* (test: "never eligible for B").
+- From a shared queue, user B only ever receives B's own + unowned items (test: "B can never pick
+  up A-owned items").
+- Sign-out clears the queue and the epoch guard prevents any in-flight write from undoing that.
+The imperative race fixes (Findings A/B) are verified by code review + reasoning; they are not
+unit-testable without a live Supabase/DOM harness (that harness arrives in M2).
+
+### 3. Public challenge SELECT policy — privacy implications (documented + minimally hardened)
+Policy: `create policy "Public challenge reading" ... for select to anon,authenticated using (true)`.
+- **Enumeration (NON-BLOCKING for M1, important for M2):** `using (true)` with no row filter means
+  an anon caller can list the **entire** `challenges` table (not just a shared link), harvesting
+  `owner_name`, `answers` (the quiz key), `title`, `created_at`. The unguessable UUID does **not**
+  help — enumeration doesn't require guessing ids. Acceptable for casual fun (answers are already
+  documented as non-secret, never for prizes) but broader than the app needs (it only reads by id).
+- **Account id exposure (fixed):** the original grant let anon read `owner_id` (the creator's
+  `auth.users` UUID), allowing grouping of all challenges by creator. The anon grant is now
+  **column-scoped to exclude `owner_id`**; the app never requests it as anon, and `authenticated`
+  retains full-column access (it filters its own challenges by `owner_id`).
+- **Recommended M2 remediation (out of M1 scope — needs a live DB + test accounts):** replace the
+  table-level anon SELECT with a `SECURITY DEFINER` RPC `get_challenge(id)` returning a single row,
+  and drop the anon table grant — removing enumeration entirely while preserving by-link reads.
+- The schema file is a **draft, not applied to any live project**; these changes are inert until M2.
+
+### 4. Do all reported tests pass on the final commit? — YES
+Final commit `5d3dc07`. **18 unit + 22 E2E = 40 pass, 0 fail.** (The 38 in the provisional review
+were 16 unit + 22 E2E; this adds 2 isolation regression tests.)
+```
+$ node --test tests/core.test.js   # tests 18 | pass 18 | fail 0
+$ npx playwright test              # 22 passed (Desktop Chrome + Pixel 7)
+```
+
+### 5. Downloadable diff + docs for independent review
+See the generated bundle noted at the end of this file / provided to the owner: a combined patch
+(`milestone-1.patch`, apply with `git apply`), the per-commit series, and copies of
+`REVIEW_NOTES.md` + `STATUS.md`.
+
+### 6. Merge / deploy / Milestone 2
+**Not merged, not deployed, Milestone 2 not started.** All changes remain on branch
+`milestone-1-reliability` / PR #1 and are minimal and focused on M1.
+
+## Findings classification
+| # | Finding | Severity | Status |
+|---|---------|----------|--------|
+| A | Account switch mid-sync uploads items under wrong account | **Blocking** | Fixed |
+| B | Sign-out mid-sync resurrects cleared local queue | **Blocking** | Fixed |
+| C | anon could read `owner_id` (creator account UUID) | Non-blocking (M1 guest mode doesn't touch DB) | Fixed (column-scoped grant) |
+| D | `using(true)` allows full-table enumeration of challenges | Non-blocking for M1 | Documented; RPC remediation recommended for M2 |
+| E | Rare: concurrent saveActivity during sync could be clobbered | Non-blocking | Fixed (flag-merge persist) |

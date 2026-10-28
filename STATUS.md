@@ -29,8 +29,20 @@ reading and exercising the code, not by assuming placeholders are complete.
 
 ## Bugs fixed in Milestone 1
 1. **Cross-account activity leak** — unsynced local activity could upload to whichever account signed in next on a shared browser. Now: activities are stamped with their owner, sync is filtered by owner, and the local queue is cleared on sign-out.
-2. **False "link broken" flash** — cloud `?c=` deep links now show a loading state while the Supabase SDK initializes (and a clear message if cloud is not configured), instead of briefly flashing an error.
-3. **Duplicate challenge on rapid taps** — the create action is now guarded against double submission.
-4. **Accessibility / mobile** — auth dialog focus management + focus trap, `aria-current` on active nav, 16px inputs (prevents iOS zoom-on-focus), larger touch targets, horizontal-overflow guard.
+2. **Cross-account isolation under async races** (found in the ChatGPT review self-audit): (a) an account switch during an in-flight sync could upload one account's queued items under another account's id; (b) a sign-out during an in-flight sync could resurrect the cleared queue. Fixed by capturing the user id + an auth-generation (`authEpoch`) once, aborting on epoch change, and persisting via a flag-merge. See `REVIEW_NOTES.md` → "Audit response".
+3. **False "link broken" flash** — cloud `?c=` deep links now show a loading state while the Supabase SDK initializes (and a clear message if cloud is not configured), instead of briefly flashing an error.
+4. **Duplicate challenge on rapid taps** — the create action is now guarded against double submission.
+5. **Accessibility / mobile** — auth dialog focus management + focus trap, `aria-current` on active nav, 16px inputs (prevents iOS zoom-on-focus), larger touch targets, horizontal-overflow guard.
 
-See `REVIEW_NOTES.md` for the full change summary and test results.
+## Schema privacy (reviewed, documented)
+- The `challenges` SELECT policy (`using(true)`) is documented in `supabase-schema.sql`: it allows
+  anon **enumeration** of the whole table (owner_name/answers/title/created_at) — acceptable for
+  casual, non-prize play but broader than needed; an RPC-based remediation is recommended for M2.
+- The anon grant is now **column-scoped to exclude `owner_id`** so the creator's account UUID is not
+  exposed to unauthenticated reads. Draft schema, not applied to any live project.
+
+## Tests
+- **18 unit** (`npm run test:unit`, node --test) + **22 E2E** (`npm run test:e2e`, Playwright
+  Desktop Chrome + Pixel 7) = **40 passing, 0 failing** on the final commit.
+
+See `REVIEW_NOTES.md` for the full change summary, audit response, and test results.
