@@ -37,6 +37,19 @@ Milestone-1 baseline (the old `using(true)` enumerable challenge policy).
    Milestone-1 public/enumerable read + anon column grant. **Only** for undoing 0002 during
    testing — never leave a project in this (enumerable) state for launch.
 
+## Edge Function — `delete-account` (Phase D; deploy later, with approval)
+`supabase/functions/delete-account/index.ts` performs self-service account deletion server-side. It is
+**not deployed** in Phase D. When authorized, on the **TEST project**:
+```bash
+supabase functions deploy delete-account
+# Service-role key stays ONLY in the function's env (set by the owner; never committed):
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<TEST project service_role key>
+# SUPABASE_URL and SUPABASE_ANON_KEY are injected by the platform.
+```
+Verify: a signed-in user calling it (JWT attached by supabase-js) deletes **only their own** account;
+a missing/invalid token → 401; non-POST → 405; a partial failure returns `{ok:false, details:[…]}`
+(HTTP 500) and is safe to retry. See `SECURITY_REVIEW_PHASE_D.md`.
+
 ## Safety notes
 - Never put the `service_role`/secret key in the repo, the browser, or CI. Migrations are run
   by a human in the Supabase dashboard (or via the Supabase CLI with the owner's credentials).

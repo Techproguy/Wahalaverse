@@ -44,8 +44,8 @@ reading and exercising the code, not by assuming placeholders are complete.
   and `SECURITY_REVIEW_PHASE_C.md`. **Not applied to any live project** (TEST-only, needs approval).
 
 ## Tests
-- **55 unit** (`npm run test:unit`, node --test — `core` + `account` + `auth` + `challenges`) + **22 E2E**
-  (`npm run test:e2e`, Playwright Desktop Chrome + Pixel 7) = **77 passing, 0 failing** on the final commit.
+- **60 unit** (`npm run test:unit`, node --test — `core` + `account` + `auth` + `challenges`) + **22 E2E**
+  (`npm run test:e2e`, Playwright Desktop Chrome + Pixel 7) = **82 passing, 0 failing** on the final commit.
 - The 9 `account` tests are deterministic: they drive `account.js` with a mocked Supabase client
   using test-controlled deferred promises (delayed profile, account switch, sign-out, failed refresh,
   cross-session guest data).
@@ -61,10 +61,16 @@ reading and exercising the code, not by assuming placeholders are complete.
 ## Milestone 2 progress
 - **Phase A** (auth: magic link + OTP fallback) — done.
 - **Phase B** (pending-name isolation F-1..F-5, secure profile update, RLS scaffold, B-1/B-2) — done.
-- **Phase C** (remove challenge enumeration via `get_challenge` RPC + owner-scoped reads) — **done**
+- **Phase C** (remove challenge enumeration via `get_challenge` RPC + owner-scoped reads) — done
   (code + schema + migration + tests; not applied to a live project).
-- Remaining: live two-account RLS verification on a TEST project; account deletion/export
-  (Edge Function, service-role server-side only); live sign-out session-cleanup check (local vs
-  global, see `SECURITY_REVIEW_PHASE_C.md`).
+- **Phase D** (self-service data export + account deletion) — **done** (code + tests): client
+  `exportData`/`deleteAccount`, a JWT-verified `delete-account` Edge Function (service-role
+  server-side, **not deployed**), seeded two-account RLS fixtures, the RPC-hardening evaluation, the
+  global-vs-device sign-out doc, and the Custom Challenges design (design-only). See
+  `SECURITY_REVIEW_PHASE_D.md`, `CUSTOM_CHALLENGES_DESIGN.md`.
+- Remaining (needs a live TEST project): run the seeded RLS suite + deploy/verify the delete-account
+  function; the live sign-out session-cleanup / access-token-expiry checks; then account deletion/export
+  can be marked verified. `privacy.html` finalization (owner content) still required before any live
+  registration.
 
 See `REVIEW_NOTES.md` for the full change summary, audit response, and test results.

@@ -2,7 +2,11 @@
 
 _Branch: `milestone-2-auth-backend` (off `main` @ `cdf635c`). Date: 2026-10-28._
 
-> **Status: Phase A, B, C done (code/schema/tests); live verification pending.** Phase C removed
+> **Status: Phase A, B, C, D done (code/schema/tests); live verification pending.** Phase D added
+> self-service data export + a JWT-verified `delete-account` Edge Function (service-role server-side,
+> not deployed), seeded two-account RLS fixtures, the RPC-hardening evaluation, the global-vs-device
+> sign-out doc, and a design-only Custom Challenges spec (`SECURITY_REVIEW_PHASE_D.md`,
+> `CUSTOM_CHALLENGES_DESIGN.md`). Phase C removed
 > challenge enumeration via a hardened `get_challenge` RPC + owner-scoped reads (see
 > `SECURITY_REVIEW_PHASE_C.md`, `MIGRATIONS.md`, `supabase/migrations/0002`). Remaining: live
 > two-account RLS verification, account deletion/export, and the live sign-out session-cleanup check.
