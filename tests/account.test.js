@@ -36,7 +36,14 @@ function createMockSupabase() {
       b.maybeSingle = () => term(table, 'maybeSingle', b._row);
       b.single = () => term(table, 'single', b._row);
       b.limit = (n) => term(table, 'limit', { table, n, eq: b._eq });
+      b.delete = () => { b._del = true; return b; };
+      // Thenable: awaiting the builder WITHOUT a terminal (e.g. select().eq().order())
+      // resolves a 'select' op — mirrors PostgREST's awaitable query builder.
+      b.then = (onF, onR) => term(table, b._del ? 'delete' : 'select', b._eq).then(onF, onR);
       return b;
+    },
+    functions: {
+      invoke: (name, opts) => term('fn:' + name, 'invoke', opts),
     },
   };
   // Resolve the first pending op matching (table, op) with a Supabase-style result.
@@ -259,6 +266,70 @@ test('updateProfile caps the display name at 30 characters (improvement)', async
   assert.equal(upd.args.display_name.length, 30, 'display_name is truncated to 30 before the backend call');
   mock.settle('profiles', 'single', { data: { display_name: 'x'.repeat(30) }, error: null });
   await p;
+});
+
+// --- Phase D: data export ----------------------------------------------------
+test('exportData assembles ONLY the signed-in user\'s own data', async () => {
+  const state = baseState({ user: { id: 'A', email: 'a@x.com' } });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const p = mgr.exportData();
+  await tick();
+  mock.settle('profiles', 'select', { data: [{ user_id: 'A', display_name: 'Ada', created_at: 't' }], error: null });
+  mock.settle('activities', 'select', { data: [{ id: 'x', kind: 'simulator_completed', details: {}, created_at: 't' }], error: null });
+  mock.settle('challenges', 'select', { data: [{ id: 'c1', title: 't', answers: [0, 0, 0, 0, 0, 0, 0], template_version: 1, created_at: 't' }], error: null });
+  const res = await p;
+  assert.equal(res.ok, true);
+  assert.equal(res.data.account.user_id, 'A');
+  assert.equal(res.data.profile.display_name, 'Ada');
+  assert.equal(res.data.activities.length, 1);
+  assert.equal(res.data.challenges.length, 1);
+});
+
+test('exportData reports failure if any query errors (no partial export)', async () => {
+  const state = baseState({ user: { id: 'A', email: 'a@x.com' } });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const p = mgr.exportData();
+  await tick();
+  mock.settle('profiles', 'select', { data: [{ user_id: 'A' }], error: null });
+  mock.settle('activities', 'select', { data: null, error: { message: 'denied' } });
+  mock.settle('challenges', 'select', { data: [], error: null });
+  const res = await p;
+  assert.equal(res.ok, false);
+});
+
+// --- Phase D: account deletion ----------------------------------------------
+test('deleteAccount invokes the server function with NO client-supplied user id', async () => {
+  const state = baseState({ user: { id: 'A' } });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const p = mgr.deleteAccount();
+  await tick();
+  const call = mock.pending.find(o => o.table === 'fn:delete-account');
+  assert.ok(call, 'the delete-account Edge Function is invoked');
+  assert.deepEqual(call.args, { method: 'POST' }, 'no uid/body is sent; the function derives identity from the JWT');
+  mock.settle('fn:delete-account', 'invoke', { data: { ok: true, deleted: 'A' }, error: null });
+  const res = await p;
+  assert.equal(res.ok, true);
+});
+
+test('deleteAccount surfaces a partial-failure from the function (safe to retry)', async () => {
+  const state = baseState({ user: { id: 'A' } });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const p = mgr.deleteAccount();
+  await tick();
+  mock.settle('fn:delete-account', 'invoke', { data: { ok: false, error: 'partial-failure', details: ['auth: boom'] }, error: null });
+  const res = await p;
+  assert.equal(res.ok, false);
+  assert.equal(res.error, 'partial-failure');
+});
+
+test('deleteAccount handles a transport error without claiming success', async () => {
+  const state = baseState({ user: { id: 'A' } });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const p = mgr.deleteAccount();
+  await tick();
+  mock.settle('fn:delete-account', 'invoke', { data: null, error: { message: 'network down' } });
+  const res = await p;
+  assert.equal(res.ok, false);
 });
 
 // --- clearAccountState (B-1) -------------------------------------------------

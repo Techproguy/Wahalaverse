@@ -174,7 +174,57 @@
       }
     }
 
-    return { clearAccountState, ensureProfile, syncActivities, refreshAccount, updateProfile };
+    // Self-service DATA EXPORT: assemble the signed-in user's OWN data for download.
+    // Every read is RLS-scoped to this user (profiles/activities own-only policies;
+    // challenges filtered to owner_id). Epoch-guarded so a mid-export identity
+    // change discards the result rather than returning it for the wrong account.
+    async function exportData() {
+      if (!state.user || !state.supabase) return { ok: false, error: 'not-signed-in' };
+      const uid = state.user.id;
+      const epoch = state.authEpoch;
+      try {
+        const [prof, acts, chs] = await Promise.all([
+          state.supabase.from('profiles').select('user_id,display_name,created_at').eq('user_id', uid),
+          state.supabase.from('activities').select('id,kind,details,created_at').order('created_at', { ascending: false }),
+          state.supabase.from('challenges').select('id,title,answers,template_version,created_at').eq('owner_id', uid).order('created_at', { ascending: false }),
+        ]);
+        if (!stillCurrent(uid, epoch)) return { ok: false, error: 'superseded' };
+        if (prof.error || acts.error || chs.error) throw (prof.error || acts.error || chs.error);
+        return {
+          ok: true,
+          data: {
+            exported_at_note: 'Stamp the export time client-side when saving.',
+            account: { user_id: uid, email: state.user.email || null },
+            profile: (prof.data && prof.data[0]) || null,
+            activities: acts.data || [],
+            challenges: chs.data || [],
+          },
+        };
+      } catch (err) {
+        console.warn('Export:', err);
+        return { ok: false, error: err };
+      }
+    }
+
+    // Self-service ACCOUNT DELETION: calls the server-side `delete-account` Edge
+    // Function, which verifies the caller's JWT and deletes ONLY that caller's own
+    // account using the service-role key (never shipped to the browser). We send NO
+    // user id — the function derives it from the verified token. Returns a normalized
+    // result; the caller signs out on success.
+    async function deleteAccount() {
+      if (!state.user || !state.supabase) return { ok: false, error: 'not-signed-in' };
+      try {
+        const { data, error } = await state.supabase.functions.invoke('delete-account', { method: 'POST' });
+        if (error) throw error;
+        if (data && data.ok === false) return { ok: false, error: data.error || 'delete-failed', details: data.details };
+        return { ok: true };
+      } catch (err) {
+        console.warn('Delete account:', err);
+        return { ok: false, error: err };
+      }
+    }
+
+    return { clearAccountState, ensureProfile, syncActivities, refreshAccount, updateProfile, exportData, deleteAccount };
   }
 
   return { create };
