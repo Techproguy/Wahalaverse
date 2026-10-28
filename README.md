@@ -33,7 +33,7 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 46 tests: core + account + auth (mocked backend)
+npm run test:unit            # -> 50 tests: core + account + auth (mocked backend)
 npm run test:rls             # -> two-account RLS probes; SKIPS unless TEST-project env vars are set
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
@@ -53,7 +53,7 @@ deferred-promise Supabase client: delayed profile responses, account switching, 
 refreshes, and cross-session guest data, plus the Phase A auth flow (send link/code, verify OTP,
 error mapping) via a mocked auth client, plus pending-name isolation, auth
 state-hygiene (stale-response invalidation), and secure profile update. Last run
-(2026-10-28): **46/46 unit, 22/22 E2E passing (68 total)**; the RLS integration
+(2026-10-28): **50/50 unit, 22/22 E2E passing (72 total)**; the RLS integration
 suite is prepared and skips without a TEST project.
 CI (GitHub Actions) runs both suites on every push/PR.
 
@@ -62,6 +62,15 @@ cloud challenge storage/retrieval, real activity upload/RLS, and profile creatio
 See `STATUS.md` and `REVIEW_NOTES.md`.
 
 ## 2. Enable real sign-up and stored activity
+
+> ⚠️ **NOT APPROVAL TO COLLECT REAL USER DATA.** `supabase-schema.sql` (including the draft
+> profile-update policy) and the steps below are reference material for a **TEST project only**.
+> Applying the schema or filling `config.js` does **not** mean public registrations are authorized.
+> Live registration / personal-data collection requires **explicit product-owner approval** AND the
+> Milestone 2 privacy work first: a finalized `privacy.html` (operator legal identity, contact,
+> retention), a working account **deletion/export** path, and server-side abuse/rate limits. Until
+> then, keep the **production** `config.js` blank so the site stays guest-only. See `MILESTONE_2_PLAN.md`
+> and `DEPLOYMENT_AUDIT.md`.
 
 1. Create a Supabase project at https://supabase.com/.
 2. Paste `supabase-schema.sql` into Supabase **SQL Editor** and run it once. It creates exactly three app tables: `profiles`, `challenges` and `activities`.

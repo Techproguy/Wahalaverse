@@ -167,6 +167,62 @@ test('F-4: a thrown (network) rejection never leaves the busy flag stuck', async
   assert.ok(toasts.length >= 1);
 });
 
+// --- B-2: sign-out renders cleared state synchronously + honest failure -------
+function makeSignOut(signOutImpl) {
+  const state = {
+    user: { id: 'A' }, profile: { display_name: 'Alice' },
+    cloudActivities: [{ id: 1 }], cloudChallenges: [{ id: 2 }], loadingAccount: false,
+    profileDraft: 'half', savingProfile: true,
+    authEmail: 'a@test.com', authName: 'A', authSending: false, authVerifying: false,
+    authEpoch: 1, authOpId: 1,
+    supabase: { auth: { signOut: signOutImpl } },
+  };
+  let renders = 0; const toasts = []; let cleared = 0; let localCleared = 0;
+  const ctl = Auth.createController({
+    state, ops: { send: () => {}, verify: () => {} },
+    persistPending: () => {}, render: () => { renders++; },
+    toast: (m) => toasts.push(m),
+    clearAccountState: () => { cleared++; state.profile = null; state.cloudActivities = []; state.cloudChallenges = []; state.profileDraft = null; state.savingProfile = false; },
+    clearLocal: () => { localCleared++; },
+  });
+  return { ctl, state, toasts, rendersAt: () => renders, cleared: () => cleared, localCleared: () => localCleared };
+}
+
+test('B-2: sign-out clears + renders BEFORE awaiting the backend (deferred)', async () => {
+  const d = makeDeferred();
+  const h = makeSignOut(() => d.promise);
+  const p = h.ctl.signOut();
+  // Synchronously (before the signOut promise resolves) the UI is already cleared + rendered.
+  assert.equal(h.state.user, null);
+  assert.equal(h.state.profile, null);
+  assert.equal(h.state.profileDraft, null);
+  assert.deepEqual(h.state.cloudActivities, []);
+  assert.ok(h.rendersAt() >= 1, 'render happened before awaiting signOut');
+  assert.equal(h.cleared(), 1);
+  assert.equal(h.localCleared(), 1);
+  d.resolve({ error: null });
+  const res = await p;
+  assert.equal(res.ok, true);
+  assert.deepEqual(h.toasts, ['Signed out successfully']);
+});
+
+test('B-2: a REJECTED sign-out still clears locally and does not claim success', async () => {
+  const h = makeSignOut(() => Promise.reject(new Error('network down')));
+  const res = await h.ctl.signOut();
+  assert.equal(res.ok, false);
+  assert.equal(h.state.user, null, 'local session state is cleared regardless of backend failure');
+  assert.equal(h.state.profile, null);
+  assert.ok(!h.toasts.includes('Signed out successfully'), 'must NOT falsely claim a successful sign-out');
+  assert.ok(h.toasts.some(m => /this device|could not be confirmed/i.test(m)), 'reports an honest local-only sign-out');
+});
+
+test('B-2: a signOut returning {error} is treated as failure', async () => {
+  const h = makeSignOut(() => Promise.resolve({ error: { message: 'server error' } }));
+  const res = await h.ctl.signOut();
+  assert.equal(res.ok, false);
+  assert.ok(!h.toasts.includes('Signed out successfully'));
+});
+
 test('F-2/happy: a successful verify clears email + name and signs in', async () => {
   const h = makeController({ state: { authEmail: 'a@test.com', authName: 'Ada' } });
   const p = h.ctl.verify({ token: '123456' });

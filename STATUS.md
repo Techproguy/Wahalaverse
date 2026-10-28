@@ -42,8 +42,8 @@ reading and exercising the code, not by assuming placeholders are complete.
   exposed to unauthenticated reads. Draft schema, not applied to any live project.
 
 ## Tests
-- **46 unit** (`npm run test:unit`, node --test — `core` + `account` + `auth`) + **22 E2E**
-  (`npm run test:e2e`, Playwright Desktop Chrome + Pixel 7) = **50 passing, 0 failing** on the final commit.
+- **50 unit** (`npm run test:unit`, node --test — `core` + `account` + `auth`) + **22 E2E**
+  (`npm run test:e2e`, Playwright Desktop Chrome + Pixel 7) = **72 passing, 0 failing** on the final commit.
 - The 9 `account` tests are deterministic: they drive `account.js` with a mocked Supabase client
   using test-controlled deferred promises (delayed profile, account switch, sign-out, failed refresh,
   cross-session guest data).

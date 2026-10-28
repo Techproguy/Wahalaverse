@@ -42,6 +42,11 @@
       state.cloudActivities = [];
       state.cloudChallenges = [];
       state.loadingAccount = false;
+      // Account-specific EDITING state must also reset on an identity change, or
+      // one user's unsaved profile draft could surface under (and be saved by) the
+      // next account on this browser (B-1).
+      state.profileDraft = null;
+      state.savingProfile = false;
     }
 
     // Still the same signed-in identity as when we captured `epoch`?
@@ -148,7 +153,9 @@
     // 2..30 char range the DB check constraint enforces.
     async function updateProfile(rawName) {
       if (!state.user || !state.supabase) return { ok: false, error: 'not-signed-in' };
-      const name = core.titleCase(rawName || '');
+      // titleCase trims + caps at 30; cap explicitly too so the account manager can
+      // never send a display_name longer than the DB's 2..30 check constraint.
+      const name = core.titleCase(rawName || '').slice(0, 30);
       if (name.length < 2) return { ok: false, error: 'too-short' };
       const uid = state.user.id;
       const epoch = state.authEpoch;

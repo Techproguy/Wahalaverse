@@ -80,9 +80,34 @@
   //    op can never clear a newer attempt's busy flag (F-3).
   // deps: { state, ops:{send,verify}, persistPending(), render(), toast(), focusDialog?(), onSignedIn?() }
   function createController(deps) {
-    const { state, ops, persistPending, render, toast, focusDialog, onSignedIn } = deps;
+    const { state, ops, persistPending, render, toast, focusDialog, onSignedIn, clearAccountState, clearLocal } = deps;
     const say = (m) => { if (toast && m) toast(m); };
     const focus = () => { if (focusDialog) focusDialog(); };
+
+    // Sign out: clear ALL local identity + account state and RE-RENDER synchronously
+    // BEFORE awaiting the backend, so the previous account's data can never stay on
+    // screen during a slow signOut() (B-2). A rejected signOut() is reported
+    // honestly — the local session is already cleared, but we do not claim a clean
+    // server sign-out.
+    async function signOut() {
+      state.authEpoch++; state.authOpId++;
+      state.user = null;
+      if (clearAccountState) clearAccountState();
+      state.authEmail = ''; state.authName = '';
+      state.authSending = false; state.authVerifying = false;
+      if (clearLocal) clearLocal();
+      render(); // synchronous: cleared UI shown immediately
+      try {
+        const res = await (state.supabase ? state.supabase.auth.signOut() : Promise.resolve({ error: null }));
+        if (res && res.error) throw res.error;
+        say('Signed out successfully');
+        return { ok: true };
+      } catch (err) {
+        console.warn('Sign-out:', err);
+        say('Signed out on this device (server sign-out could not be confirmed)');
+        return { ok: false, error: err };
+      }
+    }
 
     async function signIn({ name, email }) {
       const op = ++state.authOpId;
@@ -117,7 +142,7 @@
       return res;
     }
 
-    return { signIn, verify };
+    return { signIn, verify, signOut };
   }
 
   return { create, createController, friendlyError };

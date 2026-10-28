@@ -250,13 +250,26 @@ test('updateProfile discards its response if the account changed mid-update', as
   assert.equal(state.profile, null, "A's updated name must not be applied after switching to B");
 });
 
-// --- clearAccountState -------------------------------------------------------
-test('clearAccountState wipes profile + account data immediately', () => {
-  const state = baseState({ profile: { display_name: 'Alice' }, cloudActivities: [{ id: 1 }], cloudChallenges: [{ id: 2 }], loadingAccount: true });
+test('updateProfile caps the display name at 30 characters (improvement)', async () => {
+  const state = baseState({ user: { id: 'A', email: 'a@test.com' } });
+  const { mgr, mock } = makeAccount(state, memStorage());
+  const p = mgr.updateProfile('x'.repeat(50));
+  await tick();
+  const upd = mock.pending.find(o => o.table === 'profiles');
+  assert.equal(upd.args.display_name.length, 30, 'display_name is truncated to 30 before the backend call');
+  mock.settle('profiles', 'single', { data: { display_name: 'x'.repeat(30) }, error: null });
+  await p;
+});
+
+// --- clearAccountState (B-1) -------------------------------------------------
+test('clearAccountState wipes profile, account data, AND editing state (B-1)', () => {
+  const state = baseState({ profile: { display_name: 'Alice' }, cloudActivities: [{ id: 1 }], cloudChallenges: [{ id: 2 }], loadingAccount: true, profileDraft: 'Ada half-typed', savingProfile: true });
   const { mgr } = makeAccount(state, memStorage());
   mgr.clearAccountState();
   assert.equal(state.profile, null);
   assert.deepEqual(state.cloudActivities, []);
   assert.deepEqual(state.cloudChallenges, []);
   assert.equal(state.loadingAccount, false);
+  assert.equal(state.profileDraft, null, "one user's unsaved draft must not survive an identity change");
+  assert.equal(state.savingProfile, false);
 });

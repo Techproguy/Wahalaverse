@@ -72,6 +72,29 @@ test('RLS: activities are readable/insertable only by their owner', { skip }, as
   assert.notEqual(forged.error, null, "A must not be able to insert an activity as B");
 });
 
+test('RLS: a user cannot UPDATE another user\'s profile', { skip }, async (t) => {
+  const createClient = await loadClient();
+  if (!createClient) return t.skip('npm i --no-save @supabase/supabase-js to run');
+  const a = userClient(createClient, A_JWT);
+  // A attempts to rename B's profile -> RLS update policy (auth.uid()=user_id) must
+  // block it: either an error, or 0 rows affected (nothing returned).
+  const res = await a.from('profiles').update({ display_name: 'hacked' }).eq('user_id', B_ID).select('user_id');
+  const changedRows = (res.data || []).length;
+  assert.ok(res.error !== null || changedRows === 0, "A must not be able to update B's profile");
+});
+
+test('RLS: cross-account challenge writes are blocked', { skip }, async (t) => {
+  const createClient = await loadClient();
+  if (!createClient) return t.skip('npm i --no-save @supabase/supabase-js to run');
+  const a = userClient(createClient, A_JWT);
+  // A forges a challenge owned by B -> insert with-check (auth.uid()=owner_id) must reject.
+  const forged = await a.from('challenges').insert({ owner_id: B_ID, owner_name: 'B', title: 'x', answers: [0, 0, 0, 0, 0, 0, 0], template_version: 1 });
+  assert.notEqual(forged.error, null, "A must not insert a challenge owned by B");
+  // A tries to delete B's challenges -> delete policy (own only) must affect 0 rows.
+  const del = await a.from('challenges').delete().eq('owner_id', B_ID).select('id');
+  assert.ok(del.error !== null || (del.data || []).length === 0, "A must not delete B's challenges");
+});
+
 test('RLS: challenge enumeration (Phase C target)', { skip }, async (t) => {
   const createClient = await loadClient();
   if (!createClient) return t.skip('npm i --no-save @supabase/supabase-js to run');
