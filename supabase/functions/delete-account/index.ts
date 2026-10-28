@@ -6,10 +6,11 @@
 //
 // Deploy (TEST project only, with approval):
 //   supabase functions deploy delete-account
-//   supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<TEST project service_role key>
-//   supabase secrets set SITE_URL=<your exact app origin>   # REQUIRED for live ops:
-//                                                           # do NOT rely on wildcard CORS.
-// SUPABASE_URL / SUPABASE_ANON_KEY are injected by the platform.
+//   supabase secrets set SITE_URL=<exact TEST origin>   # REQUIRED for live ops; do NOT
+//                                                       # use the production origin or wildcard.
+// SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY are RESERVED env vars
+// that Supabase injects automatically into hosted Edge Functions — do NOT set them
+// manually. This function reads the injected SUPABASE_SERVICE_ROLE_KEY at runtime.
 //
 // NOT deployed in Phase D. This is the reviewed implementation for later.
 

@@ -26,12 +26,15 @@ production Vercel deployment stays guest-only until the owner explicitly approve
    the only secrets that go into the local, git-ignored `config.local.js`.
    - **NEVER** copy the `service_role`/secret key into the repo, the browser, or chat. It is pasted
      only into the Supabase dashboard / function secrets by the owner.
-3. **Local app wiring (TEST only):** create `config.local.js` (git-ignored) OR temporarily set
-   `config.js` locally — do **not** commit either:
-   ```js
-   window.WAHALA_CONFIG = { supabaseUrl: 'https://<ref>.supabase.co', supabasePublishableKey: '<anon key>' };
+3. **Local app wiring (TEST only):** copy the example and fill in the TEST values:
+   ```bash
+   cp config.local.example.js config.local.js   # then edit the two values
    ```
-   (The repo's `config.js` stays blank in git; production stays guest-only.)
+   `index.html` loads `config.local.js` **after** the blank `config.js`, so when it is present it
+   overrides the config; when it is absent (as in the production deployment) the site keeps the blank
+   `config.js` and stays **guest-only**. `config.local.js` is **git-ignored** — never commit it, and
+   put ONLY the TEST URL + publishable/anon key in it (never the `service_role` key). Verify: on
+   production `config.local.js` 404s (expected/harmless) and the live site remains guest-only.
 
 ---
 
@@ -96,8 +99,9 @@ browsers/profiles.
   with no account.
 - **Data export:** A → "My corner" → "Download my data" → a JSON with A's profile/activities/challenges
   only (paginated; verify with a seeded account having >1000 activities if feasible).
-- **Account deletion:** requires the Edge Function deployed (**[OWNER APPROVAL]**, §5). A → "Delete my
-  account" → confirm → signed out; A's rows gone; `get_challenge` on A's deleted challenge → empty.
+- **Account deletion (run LAST — destructive, see §8):** requires the Edge Function deployed
+  (**[OWNER APPROVAL]**, §5). A → "Delete my account" → confirm → signed out; A's rows gone;
+  `get_challenge` on A's deleted challenge → empty. Re-seed/recreate accounts before any later run.
 - **Sign-out:** A signs out → UI clears immediately; reload → still signed out. (Also the live
   sign-out/token-expiry checks from `SECURITY_REVIEW_PHASE_C/D.md`.)
 
@@ -112,8 +116,11 @@ browsers/profiles.
 2. **Auth → Email Templates → Magic Link:** include the token so the **6-digit OTP** is delivered
    alongside the link (e.g. add `{{ .Token }}` to the template) — required for the OTP fallback.
 3. **Edge Function env (only when deploying `delete-account`) [OWNER APPROVAL]:**
-   `SUPABASE_SERVICE_ROLE_KEY` (TEST service role) and `SITE_URL` = the exact app origin (for CORS;
-   do **not** rely on wildcard once live). `supabase functions deploy delete-account`.
+   `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are **reserved vars injected
+   automatically** by Supabase — **do NOT set them manually**. Only set **`SITE_URL`** = the exact
+   **TEST** origin (for CORS). Do **not** use the production WahalaVerse origin and do **not** rely on
+   the wildcard `*`. `supabase functions deploy delete-account`. After deploy, verify the function can
+   read the injected `SUPABASE_SERVICE_ROLE_KEY` at runtime (a health check / log line).
 4. **Email deliverability:** default Supabase SMTP limits are fine for a few test sends; a real SMTP
    sender is a Milestone-3 concern, not needed for this stage.
 
@@ -153,6 +160,32 @@ browsers/profiles.
 5. Provide/confirm the **two test identities** (and the TEST anon key for local wiring).
 6. Any decision to **stage a separate TEST deployment** (still not the production Vercel, which stays
    guest-only).
+
+## 8. Test hygiene & safety rules (REQUIRED)
+- **Synthetic identities only.** A and B are throwaway test accounts (disposable mailboxes / dummy
+  passwords). Never use a real person's email or any real personal data in the TEST stage.
+- **Secrets stay out of GitHub, CI logs, and chat.** TEST user JWTs, the anon key, and (especially)
+  the `service_role` key must never be committed, pasted into PRs/issues/ChatGPT, or echoed into CI
+  logs. Pass them only as local shell env vars when running `npm run test:rls`; `config.local.js` is
+  git-ignored. CI stays credential-free (the 7 RLS tests remain skipped there).
+- **Verify RLS over REST under the real roles — not the SQL Editor.** The dashboard SQL Editor runs as
+  a privileged role and **bypasses RLS**, so it cannot prove isolation. `tests/rls.integration.test.js`
+  already uses the **REST API** with the anon key + each user's **own JWT** (anon and authenticated
+  roles). Do any manual spot-checks the same way (REST with the role's token), never via SQL Editor.
+- **Fixtures must exist before assertions.** The suite's `before` hook seeds a profile+activity+
+  challenge per account and `requireSeed()` **fails** (not skips) if seeding produced no rows / no
+  challenge id — so an empty database can't make isolation assertions vacuously pass. Do not run the
+  assertions against an unseeded project.
+- **Run account-deletion tests LAST.** Deletion (T13/T14) destroys accounts A/B and their data, so run
+  it only **after** every test that depends on those accounts (T2–T12). Re-seed / recreate the test
+  accounts before any subsequent run.
+- **Physical mobile testing needs a protected HTTPS origin.** Magic links, the OTP return, and
+  `navigator.share`/WhatsApp hand-off require **HTTPS** on a real device (desktop `http://localhost`
+  is exempt, phones are not). Use a dedicated **HTTPS TEST staging** origin (e.g. a separate TEST
+  Vercel/Netlify preview, or an HTTPS tunnel) — **not** the production WahalaVerse deployment. Add that
+  origin to the Supabase **redirect allowlist** and set it as **SITE_URL** for the Edge Function CORS.
+- **TEST CORS origin ≠ production.** The deletion function's `SITE_URL` must be the TEST origin; never
+  set it to the production WahalaVerse URL.
 
 ## Restrictions (unchanged)
 PR #2 stays unmerged; no migrations run, no Edge Function deployed, no production registration, no real
