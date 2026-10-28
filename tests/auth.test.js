@@ -169,13 +169,14 @@ test('F-4: a thrown (network) rejection never leaves the busy flag stuck', async
 
 // --- B-2: sign-out renders cleared state synchronously + honest failure -------
 function makeSignOut(signOutImpl) {
+  const signOutArgs = [];
   const state = {
     user: { id: 'A' }, profile: { display_name: 'Alice' },
     cloudActivities: [{ id: 1 }], cloudChallenges: [{ id: 2 }], loadingAccount: false,
     profileDraft: 'half', savingProfile: true,
     authEmail: 'a@test.com', authName: 'A', authSending: false, authVerifying: false,
     authEpoch: 1, authOpId: 1,
-    supabase: { auth: { signOut: signOutImpl } },
+    supabase: { auth: { signOut: (arg) => { signOutArgs.push(arg); return signOutImpl(arg); } } },
   };
   let renders = 0; const toasts = []; let cleared = 0; let localCleared = 0;
   const ctl = Auth.createController({
@@ -185,7 +186,7 @@ function makeSignOut(signOutImpl) {
     clearAccountState: () => { cleared++; state.profile = null; state.cloudActivities = []; state.cloudChallenges = []; state.profileDraft = null; state.savingProfile = false; },
     clearLocal: () => { localCleared++; },
   });
-  return { ctl, state, toasts, rendersAt: () => renders, cleared: () => cleared, localCleared: () => localCleared };
+  return { ctl, state, toasts, signOutArgs, rendersAt: () => renders, cleared: () => cleared, localCleared: () => localCleared };
 }
 
 test('B-2: sign-out clears + renders BEFORE awaiting the backend (deferred)', async () => {
@@ -204,6 +205,7 @@ test('B-2: sign-out clears + renders BEFORE awaiting the backend (deferred)', as
   const res = await p;
   assert.equal(res.ok, true);
   assert.deepEqual(h.toasts, ['Signed out successfully']);
+  assert.deepEqual(h.signOutArgs[0], { scope: 'global' }, 'sign-out uses explicit global scope (revoke all sessions)');
 });
 
 test('B-2: a REJECTED sign-out still clears locally and does not claim success', async () => {

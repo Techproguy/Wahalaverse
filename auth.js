@@ -98,7 +98,14 @@
       if (clearLocal) clearLocal();
       render(); // synchronous: cleared UI shown immediately
       try {
-        const res = await (state.supabase ? state.supabase.auth.signOut() : Promise.resolve({ error: null }));
+        // Explicit GLOBAL scope: revoke this user's refresh tokens server-side on
+        // ALL devices (not just this tab), which is the safer default for a shared
+        // browser. supabase-js removes the local session from storage as part of
+        // signOut regardless; our state/UI is already cleared above, so a failed
+        // network call still leaves this device locally signed out. (Local-only
+        // scope `{scope:'local'}` is the alternative if we ever want to keep other
+        // devices signed in — evaluated in SECURITY_REVIEW_PHASE_C.md.)
+        const res = await (state.supabase ? state.supabase.auth.signOut({ scope: 'global' }) : Promise.resolve({ error: null }));
         if (res && res.error) throw res.error;
         say('Signed out successfully');
         return { ok: true };

@@ -95,14 +95,38 @@ test('RLS: cross-account challenge writes are blocked', { skip }, async (t) => {
   assert.ok(del.error !== null || (del.data || []).length === 0, "A must not delete B's challenges");
 });
 
-test('RLS: challenge enumeration (Phase C target)', { skip }, async (t) => {
+test('RLS: no challenge enumeration for anon OR authenticated (Phase C)', { skip }, async (t) => {
   const createClient = await loadClient();
   if (!createClient) return t.skip('npm i --no-save @supabase/supabase-js to run');
   const anon = userClient(createClient, null);
-  const listed = await anon.from('challenges').select('id').limit(1000);
-  // Before Phase C (current schema uses `using(true)`), anon CAN list the table.
-  // After Phase C (get_challenge RPC + dropped table grant), this must be
-  // empty/denied. This probe documents the gate and will be flipped to a hard
-  // assertion in Phase C.
-  t.diagnostic(`challenges enumerable by anon: ${(listed.data || []).length} rows, error=${listed.error ? listed.error.message : 'none'} (Phase C must make this 0/denied)`);
+  const a = userClient(createClient, A_JWT);
+
+  // anon must get NOTHING from a table SELECT (no grant at all).
+  const anonList = await anon.from('challenges').select('id').limit(1000);
+  assert.ok(anonList.error !== null || (anonList.data || []).length === 0, 'anon must not enumerate challenges');
+
+  // authenticated A may select, but ONLY their own rows (never B's / everyone's).
+  const aList = await a.from('challenges').select('id,owner_id').limit(1000);
+  assert.equal(aList.error, null);
+  for (const row of aList.data || []) assert.equal(row.owner_id, A_ID, 'A only ever sees its own challenges');
+});
+
+test('RLS: a shared challenge is retrievable BY ID via get_challenge for anon + A', { skip }, async (t) => {
+  const createClient = await loadClient();
+  if (!createClient) return t.skip('npm i --no-save @supabase/supabase-js to run');
+  const CID = process.env.SUPABASE_TEST_CHALLENGE_ID;
+  if (!CID) return t.skip('set SUPABASE_TEST_CHALLENGE_ID (a challenge owned by B) to run');
+  const anon = userClient(createClient, null);
+  const a = userClient(createClient, A_JWT);
+
+  for (const [who, client] of [['anon', anon], ['A', a]]) {
+    const res = await client.rpc('get_challenge', { cid: CID });
+    const row = Array.isArray(res.data) ? res.data[0] : res.data;
+    assert.equal(res.error, null, `${who}: get_challenge must succeed`);
+    assert.ok(row && row.id === CID, `${who}: by-link retrieval returns the one challenge`);
+    assert.equal('owner_id' in (row || {}), false, `${who}: RPC never returns owner_id`);
+  }
+  // Unknown id -> no row.
+  const miss = await anon.rpc('get_challenge', { cid: '00000000-0000-4000-8000-000000000000' });
+  assert.equal((Array.isArray(miss.data) ? miss.data[0] : miss.data) || null, null, 'unknown id returns nothing');
 });
