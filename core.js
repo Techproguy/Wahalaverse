@@ -206,10 +206,51 @@
     });
   }
 
+  // --- Create Your Own Wahala: device-local draft autosave (pure helpers) -----
+  // These power the `wv_cc_draft` localStorage autosave. They are intentionally
+  // LENIENT: a draft-in-progress is restored even if it does not yet satisfy the
+  // final challenge-generation rules (validateCustomChallenge). They only enforce
+  // *safe structure, size and limits*, so a corrupted or oversized blob is rejected.
+  const CC_DRAFT_VERSION = 1;
+
+  // Is there anything worth saving? (Avoids persisting a pristine blank builder.)
+  function isMeaningfulCustomDraft(name, questions) {
+    if ((name || '').trim().length > 0) return true;
+    if (!Array.isArray(questions)) return false;
+    return questions.some(q => q && (
+      ((q.q || '').trim().length > 0) ||
+      (Array.isArray(q.a) && q.a.some(o => (o || '').trim().length > 0))
+    ));
+  }
+
+  // Normalise an untrusted parsed draft into a safe builder shape, or null if it
+  // cannot be used. Clamps all text to the field limits, caps question/option
+  // counts, pads each question to the minimum option inputs, and drops an
+  // out-of-range marked answer. Never throws.
+  function sanitizeCustomDraft(raw) {
+    const L = CUSTOM_LIMITS;
+    if (!raw || typeof raw !== 'object' || raw.v !== CC_DRAFT_VERSION) return null;
+    if (!Array.isArray(raw.questions) || raw.questions.length === 0) return null;
+    const questions = raw.questions.slice(0, L.maxQuestions).map(q => {
+      if (!q || typeof q !== 'object') return null;
+      const text = typeof q.q === 'string' ? q.q.slice(0, L.questionLen) : '';
+      let a = Array.isArray(q.a) ? q.a.filter(o => typeof o === 'string').map(o => o.slice(0, L.optionLen)) : [];
+      a = a.slice(0, L.maxOptions);
+      while (a.length < L.minOptions) a.push('');
+      let answer = Number.isInteger(q.answer) ? q.answer : null;
+      if (answer != null && (answer < 0 || answer >= a.length)) answer = null;
+      return { q: text, a, answer };
+    });
+    if (questions.some(q => q === null)) return null;
+    const name = typeof raw.name === 'string' ? raw.name.slice(0, L.nameLen) : '';
+    return { name, questions };
+  }
+
   return {
-    Q, QUESTION_COUNT, DEMO, SCENES, SIM_START, CUSTOM_LIMITS,
+    Q, QUESTION_COUNT, DEMO, SCENES, SIM_START, CUSTOM_LIMITS, CC_DRAFT_VERSION,
     escapeHtml, titleCase, formatNaira,
     encodeChallenge, encodeCustomChallenge, decodeChallenge, validateCustomChallenge,
+    isMeaningfulCustomDraft, sanitizeCustomDraft,
     scoreQuiz, applySimChoice, syncableActivities,
   };
 });
