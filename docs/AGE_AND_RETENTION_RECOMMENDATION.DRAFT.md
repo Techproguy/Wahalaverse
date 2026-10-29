@@ -15,23 +15,32 @@
   (verifiable parental consent, heightened care), which a small team is poorly placed to
   meet well.
 
-## A. Age eligibility — recommendation
+## A. Age eligibility — options (DECISION OPEN)
 
-**Recommended: a 16+ self-declared minimum for creating an account, with guest play open to
-all, pending owner decision.** Rationale and options:
+> **Correction (do not overstate):** **16+ still includes minors.** Under Nigerian law a
+> minor is **under 18**, so a 16+ policy admits 16- and 17-year-olds, who are minors. A 16+
+> self-declaration is therefore **NOT automatically NDPA-compliant** — processing a minor's
+> data can require **verifiable parental/guardian consent** and extra safeguards. No age
+> option below is "compliant" on its own; each needs legal review and, for any under-18
+> users, a lawful basis for processing minors' data. **The decision stays open.**
 
-| Option | Pros | Cons | Fit |
+| Option | Who it admits | Upside | NDPA/compliance implication (not advice) |
 |---|---|---|---|
-| **16+ to register** (guest play unrestricted) | Keeps viral guest sharing frictionless; avoids the heaviest minors'-data duties; honest to the brand | Self-declaration is not verification | **Recommended default** |
-| 18+ to register | Simplest "no minors" story; matches earlier beta framing | Excludes a real slice of the youth audience; still self-declared | Reasonable alternative |
-| No minimum | Max reach | Takes on minors'-data obligations the team can't realistically satisfy | Not recommended |
+| **16+ to register** | **Includes minors (16–17)** + adults | Frictionless; honest to a youth brand | **Triggers minors'-data duties for 16–17** (likely verifiable parental consent, heightened care) — do **not** treat as compliant by default |
+| **18+ to register** | Adults only | Avoids minors'-data duties *if* enforced honestly; matches earlier beta framing | Still self-declared (weak proof); simplest minors story |
+| No minimum | Everyone, incl. younger minors | Max reach | Heaviest minors'-data obligations; not advisable for a small team |
 
-**Practical notes (only if the owner adopts a minimum):**
-- A single checkbox is **not** strong proof — phrase it as a self-declaration and keep a
-  timestamped record of consent.
-- State the minimum in the Terms **and** the sign-up form consistently.
-- **Do not re-introduce an 18+ gate in code** until the owner picks a policy (the current
-  build deliberately has none).
+**Implications to document whichever way the owner decides:**
+- Self-declaration (a checkbox / entered age) is **not** verification; keep a timestamped
+  record of the declaration and the policy version shown.
+- If **any under-18 users** are permitted, a **parental-consent mechanism and a minors'-data
+  handling approach** must be designed and legally reviewed before collecting their data.
+- State the chosen minimum consistently in the Terms **and** the sign-up form.
+- **Do not re-introduce an age gate in code** until the owner picks a policy (the current
+  build deliberately has none) — and adding a gate alone does not establish compliance.
+
+*(No recommendation is asserted as compliant; this is advisory and needs a Nigerian
+data-protection professional's review.)*
 
 ## B. Data retention — recommendation (starting point for owner approval)
 

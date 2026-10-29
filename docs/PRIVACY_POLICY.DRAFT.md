@@ -97,16 +97,20 @@ and the consent model before launch.
 ## 6. Who processes data for us (sub-processors)
 - **Authentication & database:** Supabase (email+password auth, profile/challenge/
   activity storage). Region: **[OWNER TO CONFIRM]**.
-- **Static hosting / CDN:** **Vercel** (current preview). Edge region observed in testing:
-  **`fra1` = Frankfurt, Germany (EU)** — **[OWNER TO CONFIRM the production region/plan]**.
+- **Static hosting / CDN:** **Vercel** (current preview). A test request was **routed via
+  the `fra1` (Frankfurt) edge** — this indicates **request routing only, NOT confirmed data
+  residency** or where any persistent data is stored. Production region/plan **[OWNER TO
+  CONFIRM]**.
 - Fonts are **self-hosted** on our own origin; the site makes no Google Fonts request.
 
 ## 7. International transfers
-- ⚠️ **Discovered in testing (not yet a decision):** the Vercel edge served from **`fra1`
-  (Frankfurt, EU)**, and the Supabase project region is **[OWNER TO CONFIRM]** (not derivable
-  from the public project URL). If account data is stored/served **outside Nigeria**, this
-  section must state the countries/regions and the lawful cross-border transfer basis under
-  the NDPA before launch. The owner can pin both the Supabase region and a Vercel region.
+- ⚠️ **Not yet determined.** A test request was *routed* through Vercel's **`fra1`**
+  (Frankfurt) edge — that is observed **routing**, not proof of data-storage location. The
+  **Supabase project region** (where account data actually lives) is **[OWNER TO CONFIRM]**
+  — it is **not** derivable from the public project URL. Before launch, confirm the actual
+  **data-residency** region(s) for Supabase (and any Vercel storage), and if account data is
+  stored **outside Nigeria**, state the countries/regions and the lawful cross-border
+  transfer basis under the NDPA.
 
 ## 8. Cookies & local storage
 - We use **browser `localStorage`** on your own device. We do **not** use advertising
