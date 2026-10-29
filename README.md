@@ -4,7 +4,7 @@ A working, lightweight entertainment website for Nigerian young adults. Includes
 
 - **Predict My Wahala**: seven funny questions, answer-key creation, shareable friend challenge link, scoring and a replay/share loop.
 - **Survive Naija**: a four-round salary-and-life-decisions mini-game, with financial, peace-of-mind and street-cred stats.
-- **Assume Their Life**: a causal life-simulation where you assume a role, make decisions over a year, and live with the consequences. Pick a life from the role picker: **Founder Life** ("Zero to One" — a Lagos startup: formation, fundraising, a real **cap table** with dilution and liquidation preferences, product–market fit, hiring, scaling, survival) **CEO Life** ("Corner Office" — a hired boss of an existing company: a **board that can remove you**, activist shareholders, operating performance, acquisitions), **Political Leadership** ("The Mandate" — a governor: a fixed public **budget**, a **legislature** that must pass your bills, and state **capacity** that decides whether a passed law is actually implemented), and **Afrobeats** ("Breakout Year" — fame, credibility, fanbase). A role-agnostic engine (`atl-engine.js`) + shared sub-systems (`atl-systems.js`: cap table) + per-role packs (`atl-pack-*.js`); more core roles (CEO, Billionaire, Political) are in active scope. Each role has its own interacting meters, stakeholder memory, time progression, delayed consequences that trace back to earlier choices, and an explainable end-of-year Reckoning. **Not** a quiz — decisions are actions with trade-offs.
+- **Assume Their Life**: a causal life-simulation where you assume a role, make decisions over a year, and live with the consequences. Pick a life from the role picker — **Founder Life** ("Zero to One" — a Lagos startup: formation, fundraising, a real **cap table** with dilution and liquidation preferences, PMF, hiring, scaling), **CEO Life** ("Corner Office" — a hired boss of an existing company: a **board that can remove you**, activists, operating performance, acquisitions), **Billionaire Life** ("Paper & Power" — a holdings **portfolio**, paper **net worth vs liquid cash**, leverage and margin calls, family, influence), **Political Leadership** ("The Mandate" — a governor: a fixed public **budget**, a **legislature** that must pass your bills, and state **capacity** that decides whether a passed law is actually implemented), and **Afrobeats** ("Breakout Year" — fame, credibility, fanbase, as an additional role). A role-agnostic engine (`atl-engine.js`) + shared sub-systems (`atl-systems.js`: cap table, portfolio, board & legislative votes) + per-role packs (`atl-pack-*.js`). Each role has its own interacting meters, stakeholder memory, time progression, delayed consequences that trace back to earlier choices, and an explainable end-of-year Reckoning. **Not** a quiz — decisions are actions with trade-offs.
 - **My corner**: recent activities, account state and cloud-saved challenges.
 - **Guest mode**: runs with no backend, stores recent activity on that device via `localStorage`, and shares challenges as URL-encoded data.
 - **Optional real accounts**: Supabase Auth email magic links with display name and verified email; Supabase PostgreSQL for profile, challenge and activity storage.
@@ -34,7 +34,7 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 85 tests: core + account + Assume Their Life engine/systems/role packs
+npm run test:unit            # -> TBD tests: core + account + Assume Their Life engine/systems/role packs
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
 npm run test:e2e             # -> 38 checks across Desktop Chrome + Pixel 7 viewports
@@ -55,7 +55,7 @@ transitions, delayed consequences that fire later and trace back, commitment enf
 horizon, divergent outcomes from different early choices, player agency (declining paths), and the
 Reckoning explanation. The Founder Life pack adds cap-table dilution and liquidation-preference
 tests (a "sold the company" exit can still leave the founder with almost nothing). Last run
-(2026-10-29): **85/85 unit, 38/38 E2E passing (123 total).**
+(2026-10-29): **see combined run below.**
 
 **Untested paths (require live Supabase — Milestone 2):** email magic-link sign-in,
 cloud challenge storage/retrieval, real activity upload/RLS, and profile creation.
