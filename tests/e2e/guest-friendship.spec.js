@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./fixtures');
 
 // Core growth loop, no backend: create a guest challenge, take the shareable
 // link, open it in a FRESH browser context (a "friend"), complete it, see the

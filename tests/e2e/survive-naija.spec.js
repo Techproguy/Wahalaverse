@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./fixtures');
 
 test('Survive Naija: full 4-round run reaches an outcome with a share button', async ({ page }) => {
   await page.goto('/?page=sim');

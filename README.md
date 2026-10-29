@@ -6,7 +6,7 @@ A working, lightweight entertainment website for Nigerian young adults. Includes
 - **Survive Naija**: a four-round salary-and-life-decisions mini-game, with financial, peace-of-mind and street-cred stats.
 - **My corner**: recent activities, account state and cloud-saved challenges.
 - **Guest mode**: runs with no backend, stores recent activity on that device via `localStorage`, and shares challenges as URL-encoded data.
-- **Optional real accounts**: Supabase Auth email magic links with display name and verified email; Supabase PostgreSQL for profile, challenge and activity storage.
+- **Optional real accounts**: Supabase Auth email + password sign-up/sign-in (no OTP/email verification; sign-up signs in immediately; password reset on request); Supabase PostgreSQL for profile, challenge and activity storage.
 
 The website is a functional starter, **not a deployed live service**. Authentication and cross-device storage work once you configure Supabase. The privacy page and certain operations are intentionally marked pre-launch until an operator completes them.
 
@@ -33,7 +33,8 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 28 tests: core logic + account state machine (mocked backend)
+npm run test:unit            # -> 75 tests: core/account/auth/challenges/delete-account (mocked backend)
+npm run test:rls             # -> two-account RLS probes; SKIPS unless TEST-project env vars are set
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
 npm run test:e2e             # -> 22 checks across Desktop Chrome + Pixel 7 viewports
@@ -49,13 +50,27 @@ validation (short name, unanswered questions); malformed guest links and cloud (
 links with no backend; phone viewport (bottom nav shows, no horizontal overflow, auth
 dialog focus). The unit suite also covers the account state machine (`account.js`) with a mocked,
 deferred-promise Supabase client: delayed profile responses, account switching, sign-out, failed
-refreshes, and cross-session guest data. Last run (2026-10-28): **28/28 unit, 22/22 E2E passing (50 total).**
+refreshes, and cross-session guest data, plus the email+password auth flow (sign-up, login,
+password reset, error mapping) via a mocked auth client, plus auth
+state-hygiene (stale-response invalidation), and secure profile update. Last run
+(2026-10-28): **75/75 unit, 22/22 E2E passing (97 total)**; the RLS integration
+suite is prepared and skips without a TEST project.
+CI (GitHub Actions) runs both suites on every push/PR.
 
-**Untested paths (require live Supabase — Milestone 2):** email magic-link sign-in,
+**Untested paths (require live Supabase — Milestone 2):** email+password sign-up/sign-in,
 cloud challenge storage/retrieval, real activity upload/RLS, and profile creation.
 See `STATUS.md` and `REVIEW_NOTES.md`.
 
 ## 2. Enable real sign-up and stored activity
+
+> ⚠️ **NOT APPROVAL TO COLLECT REAL USER DATA.** `supabase-schema.sql` (including the draft
+> profile-update policy) and the steps below are reference material for a **TEST project only**.
+> Applying the schema or filling `config.js` does **not** mean public registrations are authorized.
+> Live registration / personal-data collection requires **explicit product-owner approval** AND the
+> Milestone 2 privacy work first: a finalized `privacy.html` (operator legal identity, contact,
+> retention), a working account **deletion/export** path, and server-side abuse/rate limits. Until
+> then, keep the **production** `config.js` blank so the site stays guest-only. See `MILESTONE_2_PLAN.md`
+> and `DEPLOYMENT_AUDIT.md`.
 
 1. Create a Supabase project at https://supabase.com/.
 2. Paste `supabase-schema.sql` into Supabase **SQL Editor** and run it once. It creates exactly three app tables: `profiles`, `challenges` and `activities`.
@@ -63,7 +78,7 @@ See `STATUS.md` and `REVIEW_NOTES.md`.
 4. Edit `config.js` to set `supabaseUrl` and `supabasePublishableKey`.
 5. In **Authentication → URL Configuration**, set the app's production Site URL, and explicitly allow any development callback URL you need (e.g., `http://localhost:8080/**`).
 6. Configure and test email deliverability with a proper SMTP sender before a public launch; default trial email limits are not sufficient for large-scale acquisition.
-7. Deploy all static files together. The sign-in modal will now send real email magic links, and signed-in users will have cloud-saved challenges and game history.
+7. Deploy all static files together. The sign-in modal now does real email+password sign-up/sign-in (no OTP/verification; password reset on request), and signed-in users have cloud-saved challenges and game history.
 
 **Safety:** Only the Supabase public URL and publishable/anon key belong in a browser config file. **NEVER** add a `service_role`, secret API key, SMTP password, or other server-side credential to this site. Row-level security and scoped SQL grants protect cloud rows. Get them reviewed/tested before launch.
 
@@ -72,7 +87,7 @@ See `STATUS.md` and `REVIEW_NOTES.md`.
 | Table | Columns (core) | Access |
 |---|---|---|
 | `profiles` | `user_id`, `display_name`, `created_at` | Logged-in owner can read and create only |
-| `challenges` | `id`, `owner_id`, `owner_name`, `title`, `answers`, `created_at` | Public reads; owner inserts/deletes |
+| `challenges` | `id`, `owner_id`, `owner_name`, `title`, `answers`, `created_at` | **By-id read via `get_challenge` RPC**; authenticated reads/inserts/deletes **own only**; no table enumeration (anon has no table SELECT) |
 | `activities` | `id`, `user_id`, `kind`, `details`, `created_at` | Logged-in owner reads and inserts only |
 
 Supabase Auth stores account email separately. Guest links encode the quiz answer key into the URL; they are openly inspectable by technical users, so don't use for competitions with prizes. Guest results remain browser-local, but are synced to the player's account upon successful future login on the same browser.

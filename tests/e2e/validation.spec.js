@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./fixtures');
 
 test('create validation: short name is rejected with a toast', async ({ page }) => {
   await page.goto('/?page=create');

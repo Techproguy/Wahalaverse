@@ -27,11 +27,30 @@
   //   core,                      // WahalaCore (syncableActivities, titleCase)
   //   storage,                   // { getRecent(): [], setRecent(arr) } local queue
   //   getSessionId(): string,    // current guest browser-session id
-  //   getPendingName(): string,  // localStorage 'wv_pending_name' or null
+  //   getPendingName(email): string|null, // email-scoped pending display name
+  //   clearPendingName(),        // remove the stored pending display name
   //   render(),                  // re-render hook
   // }
+  // Fully paginate a PostgREST query. `makeQuery(from,to)` must return an awaitable
+  // query for a stable-ordered slice. Fails (throws) on ANY page error — never
+  // returns a partial result. Stops only when a page is shorter than pageSize (the
+  // true last page), so > pageSize rows are read completely (D-4).
+  async function fetchAllRows(makeQuery, pageSize = 1000) {
+    const all = [];
+    let from = 0;
+    for (;;) {
+      const { data, error } = await makeQuery(from, from + pageSize - 1);
+      if (error) throw error;
+      const rows = data || [];
+      all.push(...rows);
+      if (rows.length < pageSize) break;
+      from += pageSize;
+    }
+    return all;
+  }
+
   function create(deps) {
-    const { state, core, storage, getSessionId, getPendingName, render } = deps;
+    const { state, core, storage, getSessionId, getPendingName, clearPendingName, render } = deps;
 
     // Called synchronously by the caller the instant the signed-in identity
     // changes (sign-in as a different user, sign-out). Wipes everything tied to
@@ -41,6 +60,11 @@
       state.cloudActivities = [];
       state.cloudChallenges = [];
       state.loadingAccount = false;
+      // Account-specific EDITING state must also reset on an identity change, or
+      // one user's unsaved profile draft could surface under (and be saved by) the
+      // next account on this browser (B-1).
+      state.profileDraft = null;
+      state.savingProfile = false;
     }
 
     // Still the same signed-in identity as when we captured `epoch`?
@@ -52,8 +76,13 @@
       if (!state.user || !state.supabase) return;
       const uid = state.user.id;
       const epoch = state.authEpoch;
+      // Pending name is single-use and email-scoped: read it for THIS user's email,
+      // then clear the stored value regardless of match (consume on use; drop any
+      // stale/foreign one) so it can never seed a later, different account.
+      const pending = getPendingName ? getPendingName(state.user.email) : null;
+      if (clearPendingName) clearPendingName();
       const name = core.titleCase(
-        state.user.user_metadata?.display_name || getPendingName() ||
+        state.user.user_metadata?.display_name || pending ||
         state.user.email?.split('@')[0] || 'Wahala user');
       try {
         const { data, error } = await state.supabase.from('profiles')
@@ -136,8 +165,96 @@
       }
     }
 
-    return { clearAccountState, ensureProfile, syncActivities, refreshAccount };
+    // Secure profile update: a signed-in user can change ONLY their own
+    // display_name. Account-scoped (`.eq('user_id', uid)` + RLS), epoch-guarded so
+    // a response arriving after an identity change is discarded, validated to the
+    // 2..30 char range the DB check constraint enforces.
+    async function updateProfile(rawName) {
+      if (!state.user || !state.supabase) return { ok: false, error: 'not-signed-in' };
+      // titleCase trims + caps at 30; cap explicitly too so the account manager can
+      // never send a display_name longer than the DB's 2..30 check constraint.
+      const name = core.titleCase(rawName || '').slice(0, 30);
+      if (name.length < 2) return { ok: false, error: 'too-short' };
+      const uid = state.user.id;
+      const epoch = state.authEpoch;
+      try {
+        const { data, error } = await state.supabase.from('profiles')
+          .update({ display_name: name }).eq('user_id', uid)
+          .select('display_name').single();
+        if (!stillCurrent(uid, epoch)) return { ok: false, error: 'superseded' };
+        if (error) throw error;
+        state.profile = data;
+        render();
+        return { ok: true, profile: data };
+      } catch (err) {
+        console.warn('Profile update:', err);
+        return { ok: false, error: err };
+      }
+    }
+
+    // Self-service DATA EXPORT: assemble the signed-in user's OWN data for download.
+    // Every read is RLS-scoped to this user (profiles/activities own-only policies;
+    // challenges filtered to owner_id). Epoch-guarded so a mid-export identity
+    // change discards the result rather than returning it for the wrong account.
+    async function exportData() {
+      if (!state.user || !state.supabase) return { ok: false, error: 'not-signed-in' };
+      const uid = state.user.id;
+      const epoch = state.authEpoch;
+      try {
+        // Stable ordering (created_at desc, id desc tiebreaker) so range-based paging
+        // is reliable even across equal timestamps. All pages are fetched; any page
+        // error aborts the whole export (no partial download).
+        const [prof, activities, challenges] = await Promise.all([
+          state.supabase.from('profiles').select('user_id,display_name,created_at').eq('user_id', uid),
+          fetchAllRows((from, to) => state.supabase.from('activities')
+            .select('id,kind,details,created_at')
+            .order('created_at', { ascending: false }).order('id', { ascending: false })
+            .range(from, to)),
+          fetchAllRows((from, to) => state.supabase.from('challenges')
+            .select('id,title,answers,template_version,created_at').eq('owner_id', uid)
+            .order('created_at', { ascending: false }).order('id', { ascending: false })
+            .range(from, to)),
+        ]);
+        if (!stillCurrent(uid, epoch)) return { ok: false, error: 'superseded' };
+        if (prof.error) throw prof.error;
+        return {
+          ok: true,
+          data: {
+            exported_at_note: 'Stamp the export time client-side when saving.',
+            account: { user_id: uid, email: state.user.email || null },
+            profile: (prof.data && prof.data[0]) || null,
+            activities,
+            challenges,
+          },
+        };
+      } catch (err) {
+        console.warn('Export:', err);
+        return { ok: false, error: err };
+      }
+    }
+
+    // Self-service ACCOUNT DELETION: calls the server-side `delete-account` Edge
+    // Function, which verifies the caller's JWT and deletes ONLY that caller's own
+    // account using the service-role key (never shipped to the browser). We send NO
+    // user id — the function derives it from the verified token. Returns a normalized
+    // result; the caller signs out on success.
+    async function deleteAccount() {
+      if (!state.user || !state.supabase) return { ok: false, error: 'not-signed-in' };
+      try {
+        const { data, error } = await state.supabase.functions.invoke('delete-account', { method: 'POST' });
+        if (error) throw error;
+        // Accept success ONLY on an explicit {ok:true}. A null/missing/malformed
+        // response is treated as a failure, never an implied success (D-2).
+        if (data && data.ok === true) return { ok: true };
+        return { ok: false, error: (data && data.error) || 'unexpected-response' };
+      } catch (err) {
+        console.warn('Delete account:', err);
+        return { ok: false, error: err };
+      }
+    }
+
+    return { clearAccountState, ensureProfile, syncActivities, refreshAccount, updateProfile, exportData, deleteAccount };
   }
 
-  return { create };
+  return { create, fetchAllRows };
 });

@@ -36,12 +36,9 @@ alter table public.activities enable row level security;
 revoke all on table public.profiles, public.challenges, public.activities from anon, authenticated;
 grant select,insert on table public.profiles to authenticated;
 grant select,insert,delete on table public.challenges to authenticated;
--- Column-scoped grant for anon: public (link) readers get everything they need
--- to PLAY a challenge, but NOT owner_id (the creator's auth.users UUID). This
--- keeps the account identifier out of unauthenticated reads. authenticated keeps
--- full-column select because the app filters a user's own challenges by owner_id.
-grant select (id, owner_name, title, answers, template_version, created_at)
-  on table public.challenges to anon;
+-- Phase C: anon gets NO table-level SELECT on challenges at all (no enumeration).
+-- A public, by-link read happens ONLY through the get_challenge(id) RPC below.
+-- authenticated keeps table SELECT but the row policy limits it to OWN rows.
 grant select,insert on table public.activities to authenticated;
 
 -- Profiles belong only to their account holders.
@@ -49,29 +46,52 @@ create policy "Read own profile" on public.profiles for select to authenticated
   using ((select auth.uid())=user_id);
 create policy "Create own profile" on public.profiles for insert to authenticated
   with check ((select auth.uid())=user_id);
+-- Milestone 2 (Phase B): allow a signed-in user to update ONLY their own profile's
+-- display_name. Account-scoped by auth.uid(); the 2..30 char length is enforced by
+-- the table check constraint. DRAFT — not applied to any live project yet.
+grant update (display_name) on table public.profiles to authenticated;
+create policy "Update own profile" on public.profiles for update to authenticated
+  using ((select auth.uid())=user_id)
+  with check ((select auth.uid())=user_id);
 
--- PRIVACY NOTE on this SELECT policy (reviewed for Milestone 1):
---   `using (true)` makes every challenge row readable by anon + authenticated.
---   Implications for a "public by link" product:
---   1. ENUMERATION: because there is no row filter, an anon caller can list the
---      WHOLE table (e.g. GET /rest/v1/challenges with no id filter), not just a
---      single shared link. The unguessable UUID id does NOT protect against this
---      — you don't need to guess ids to dump the set. Harvestable: owner_name,
---      answers (the quiz key), title, created_at. This is acceptable for casual
---      fun (answers are already documented as non-secret; NEVER use for prizes),
---      but it is broader than the app needs (the app only ever reads BY id).
---   2. ACCOUNT ID: mitigated above via a column-scoped grant so anon cannot read
---      owner_id; without that, anon could group all challenges by creator.
---   RECOMMENDED M2 REMEDIATION (needs a live DB + test accounts, out of M1 scope):
---   replace table-level anon SELECT with a SECURITY DEFINER RPC get_challenge(id)
---   that returns a single row, and drop the anon table grant — this removes
---   enumeration entirely while keeping by-link reads. Tracked in REVIEW_NOTES.md.
-create policy "Public challenge reading" on public.challenges for select to anon,authenticated
-  using (true);
+-- Phase C — SECURE challenge access (replaces the old `using(true)` enumeration).
+-- Table SELECT is OWNER-SCOPED: a signed-in user can read ONLY their own
+-- challenges (powers the "my challenges" list). Neither anon nor authenticated can
+-- enumerate other users' challenges through a table SELECT.
+create policy "Read own challenges" on public.challenges for select to authenticated
+  using ((select auth.uid())=owner_id);
 create policy "Create own challenges" on public.challenges for insert to authenticated
   with check ((select auth.uid())=owner_id);
 create policy "Delete own challenges" on public.challenges for delete to authenticated
   using ((select auth.uid())=owner_id);
+
+-- The ONLY way to read someone else's challenge is BY ID via this RPC — one row,
+-- no listing. Hardened: SECURITY DEFINER (runs as owner, bypassing the row policy)
+-- but STABLE, with an explicit EMPTY search_path and fully schema-qualified names
+-- (no search-path hijacking), returning the MINIMUM fields needed to play
+-- (never owner_id), and with EXECUTE revoked from PUBLIC then granted only to
+-- anon + authenticated. Null/unknown id simply returns no rows.
+create or replace function public.get_challenge(cid uuid)
+returns table (
+  id uuid,
+  owner_name text,
+  title text,
+  answers smallint[],
+  template_version smallint,
+  created_at timestamptz
+)
+language sql
+security definer
+stable
+set search_path = ''
+as $$
+  select c.id, c.owner_name, c.title, c.answers, c.template_version, c.created_at
+  from public.challenges c
+  where c.id = cid
+  limit 1
+$$;
+revoke all on function public.get_challenge(uuid) from public;
+grant execute on function public.get_challenge(uuid) to anon, authenticated;
 
 -- All saved activity belongs to the currently signed-in user.
 create policy "Read own activity" on public.activities for select to authenticated

@@ -34,16 +34,18 @@ reading and exercising the code, not by assuming placeholders are complete.
 4. **Duplicate challenge on rapid taps** — the create action is now guarded against double submission.
 5. **Accessibility / mobile** — auth dialog focus management + focus trap, `aria-current` on active nav, 16px inputs (prevents iOS zoom-on-focus), larger touch targets, horizontal-overflow guard.
 
-## Schema privacy (reviewed, documented)
-- The `challenges` SELECT policy (`using(true)`) is documented in `supabase-schema.sql`: it allows
-  anon **enumeration** of the whole table (owner_name/answers/title/created_at) — acceptable for
-  casual, non-prize play but broader than needed; an RPC-based remediation is recommended for M2.
-- The anon grant is now **column-scoped to exclude `owner_id`** so the creator's account UUID is not
-  exposed to unauthenticated reads. Draft schema, not applied to any live project.
+## Schema privacy — challenge enumeration REMOVED (Phase C)
+- `supabase-schema.sql` is now the **secure baseline**: no `using(true)`; **anon has no table SELECT**;
+  authenticated SELECT is **owner-scoped** (`auth.uid()=owner_id`). A shared challenge is readable
+  **only by id** via a hardened `SECURITY DEFINER get_challenge(id)` RPC (`search_path=''`,
+  schema-qualified, minimal columns/no `owner_id`, EXECUTE revoked from public then granted to
+  anon+authenticated). Neither anon nor authenticated can enumerate others' challenges.
+- Migration `supabase/migrations/0002` (+ rollback) upgrades an existing M1 project; see `MIGRATIONS.md`
+  and `SECURITY_REVIEW_PHASE_C.md`. **Not applied to any live project** (TEST-only, needs approval).
 
 ## Tests
-- **28 unit** (`npm run test:unit`, node --test — 19 `core` + 9 `account`) + **22 E2E**
-  (`npm run test:e2e`, Playwright Desktop Chrome + Pixel 7) = **50 passing, 0 failing** on the final commit.
+- **75 unit** (`npm run test:unit`, node --test — core/account/auth/challenges/delete-account) + **22 E2E**
+  (`npm run test:e2e`, Playwright Desktop Chrome + Pixel 7) = **97 passing, 0 failing** on the final commit.
 - The 9 `account` tests are deterministic: they drive `account.js` with a mocked Supabase client
   using test-controlled deferred promises (delayed profile, account switch, sign-out, failed refresh,
   cross-session guest data).
@@ -56,9 +58,34 @@ reading and exercising the code, not by assuming placeholders are complete.
 - **Guest activity ownership:** unowned guest activities are attributed to the current browser
   session (`sessionStorage`), so another session's / person's guest history is never auto-synced.
 
-## Milestone 2 requirement (carried forward)
-- **Remove broad challenge enumeration for BOTH anon and authenticated** before enabling production
-  storage (planned: a `SECURITY DEFINER` `get_challenge(id)` RPC + dropping the broad table SELECT
-  grants). Documented in `supabase-schema.sql`; not implemented in M1.
+## Milestone 2 progress
+- **Auth method FINALIZED (2026-10-29):** **email + password, NO OTP / magic-link / email
+  verification.** Registration (email + password + display name) **signs the user in immediately**;
+  login is email + password; password recovery via a reset email **only when requested**. Owner
+  disables Supabase **Confirm Email** on Lava TEST (production auth settings unchanged). Guest-first
+  preserved; passwords handled only by Supabase Auth (never in state/logs/`public.profiles`); RLS +
+  account-ownership protections intact.
+- **On resume:** inspect the existing disposable TEST account before reuse — its earlier passwordless
+  attempts did **not** set a password; use "Forgot password?" or a fresh (approved) account.
+- **Status snapshot (2026-10-29):**
+  - Automated tests: **75 unit + 22 E2E passing**.
+  - Live email/password login on Lava: **BLOCKED** by Supabase built-in email-sending **rate limit**
+    (paused by owner; revisit after the quota resets). Do **not** assume the existing disposable
+    account has a password or is confirmed — must be checked on resume.
+  - Live RLS / security checks: **PENDING**.
+  - PR #2: **UNMERGED**.
+- **Phase A** (auth) — done (now email+password).
+- **Phase B** (pending-name isolation F-1..F-5, secure profile update, RLS scaffold, B-1/B-2) — done.
+- **Phase C** (remove challenge enumeration via `get_challenge` RPC + owner-scoped reads) — done
+  (code + schema + migration + tests; not applied to a live project).
+- **Phase D** (self-service data export + account deletion) — **done** (code + tests): client
+  `exportData`/`deleteAccount`, a JWT-verified `delete-account` Edge Function (service-role
+  server-side, **not deployed**), seeded two-account RLS fixtures, the RPC-hardening evaluation, the
+  global-vs-device sign-out doc, and the Custom Challenges design (design-only). See
+  `SECURITY_REVIEW_PHASE_D.md`, `CUSTOM_CHALLENGES_DESIGN.md`.
+- Remaining (needs a live TEST project): run the seeded RLS suite + deploy/verify the delete-account
+  function; the live sign-out session-cleanup / access-token-expiry checks; then account deletion/export
+  can be marked verified. `privacy.html` finalization (owner content) still required before any live
+  registration.
 
 See `REVIEW_NOTES.md` for the full change summary, audit response, and test results.
