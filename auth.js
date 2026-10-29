@@ -1,16 +1,14 @@
-/* WahalaVerse auth operations — thin, injectable wrapper around Supabase email
-   auth so the sign-in flow can be driven by deterministic Node tests with a
+/* WahalaVerse auth operations — thin, injectable wrapper around Supabase email +
+   PASSWORD auth, so the flow can be driven by deterministic Node tests with a
    mocked client (deferred promises) and no real backend.
 
-   Two entry points, both passwordless:
-   - sendSignInEmail(): sends the email. Supabase delivers BOTH a magic link and,
-     when the email template includes the token, a 6-digit code.
-   - verifyEmailOtp(): the fallback for when the magic link opens in a DIFFERENT
-     browser (common on mobile) — the user types the code back into the browser
-     where they started, and we verify it here.
+   Conventional accounts (approved direction): email + password sign-up and sign-in,
+   sign-out, persistent sessions, and password recovery via a secure email link.
+   No OTP/magic-link for routine login. Passwords are handled only by Supabase Auth —
+   never stored in app state, logs, or public.profiles.
 
-   No DOM, no direct globals: everything it needs is injected. Loaded as a
-   classic <script> (window.WahalaAuth) or required in Node (module.exports). */
+   No DOM, no direct globals. Loaded as a classic <script> (window.WahalaAuth) or
+   required in Node (module.exports). */
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -19,15 +17,21 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  // Map a Supabase auth error to a short, user-facing message.
+  // Map a Supabase auth error to a short, user-facing message (no secrets).
   function friendlyError(error) {
     const msg = (error && (error.message || error.error_description || '')) || '';
     const low = msg.toLowerCase();
     if (!msg) return 'Something went wrong. Please try again.';
     if (low.includes('rate') || low.includes('too many') || low.includes('for security purposes'))
       return 'Too many attempts. Please wait a minute and try again.';
-    if (low.includes('expired')) return 'That code has expired. Request a new one.';
-    if (low.includes('invalid') || low.includes('token')) return 'That code is not valid. Check it and try again.';
+    if (low.includes('already registered') || low.includes('already been registered') || low.includes('user already'))
+      return 'That email already has an account — log in instead.';
+    if (low.includes('invalid login') || low.includes('invalid credentials'))
+      return 'Email or password is incorrect.';
+    if (low.includes('email not confirmed') || low.includes('not confirmed') || low.includes('confirm your email'))
+      return 'Please verify your email first — check your inbox for the confirmation link.';
+    if (low.includes('password') && (low.includes('should be') || low.includes('at least') || low.includes('weak') || low.includes('6 characters')))
+      return 'Choose a stronger password (at least 6 characters).';
     if (low.includes('email')) return 'Please enter a valid email address.';
     return msg;
   }
@@ -35,76 +39,137 @@
   // deps: { state, getRedirectTo(): string }
   function create(deps) {
     const { state, getRedirectTo } = deps;
+    const notConfigured = { ok: false, error: { message: 'Cloud is not configured' }, message: 'Cloud is not configured' };
+    const redirect = () => (getRedirectTo ? getRedirectTo() : undefined);
 
-    async function sendSignInEmail({ email, name }) {
-      if (!state.supabase) return { ok: false, error: { message: 'Cloud is not configured' }, message: 'Cloud is not configured' };
-      const addr = String(email || '').trim();
+    // Create an account. With email-confirmation ON, Supabase returns a user but NO
+    // session (needsVerification). With it OFF, a session is returned (signed in).
+    async function signUp({ email, password, name }) {
+      if (!state.supabase) return notConfigured;
       try {
-        const { error } = await state.supabase.auth.signInWithOtp({
-          email: addr,
-          options: {
-            emailRedirectTo: getRedirectTo ? getRedirectTo() : undefined,
-            data: { display_name: name },
-          },
+        const { data, error } = await state.supabase.auth.signUp({
+          email: String(email || '').trim(),
+          password: String(password || ''),
+          options: { emailRedirectTo: redirect(), data: { display_name: name } },
         });
-        return { ok: !error, error: error || null, message: error ? friendlyError(error) : '' };
-      } catch (err) {
-        // Network/unexpected rejection: normalize to a result so callers never hang.
-        return { ok: false, error: err, message: friendlyError(err) };
-      }
+        if (error) return { ok: false, error, message: friendlyError(error) };
+        const session = (data && data.session) || null;
+        return { ok: true, session, needsVerification: !session && !!(data && data.user), error: null, message: '' };
+      } catch (err) { return { ok: false, error: err, message: friendlyError(err) }; }
     }
 
-    async function verifyEmailOtp({ email, token }) {
-      if (!state.supabase) return { ok: false, error: { message: 'Cloud is not configured' }, message: 'Cloud is not configured' };
-      const addr = String(email || '').trim();
-      const code = String(token || '').replace(/\s+/g, '');
-      if (!/^\d{6}$/.test(code)) return { ok: false, error: { message: 'invalid' }, message: 'Enter the 6-digit code from your email.' };
+    // Routine login — email + password. No OTP.
+    async function logIn({ email, password }) {
+      if (!state.supabase) return notConfigured;
       try {
-        const { data, error } = await state.supabase.auth.verifyOtp({ email: addr, token: code, type: 'email' });
-        return { ok: !error, error: error || null, session: (data && data.session) || null, message: error ? friendlyError(error) : '' };
-      } catch (err) {
-        return { ok: false, error: err, message: friendlyError(err) };
-      }
+        const { data, error } = await state.supabase.auth.signInWithPassword({
+          email: String(email || '').trim(),
+          password: String(password || ''),
+        });
+        if (error) return { ok: false, error, message: friendlyError(error) };
+        return { ok: true, session: (data && data.session) || null, error: null, message: '' };
+      } catch (err) { return { ok: false, error: err, message: friendlyError(err) }; }
     }
 
-    return { sendSignInEmail, verifyEmailOtp };
+    // Send a password-reset email (secure link back to the app).
+    async function resetPassword({ email }) {
+      if (!state.supabase) return notConfigured;
+      try {
+        const { error } = await state.supabase.auth.resetPasswordForEmail(String(email || '').trim(), { redirectTo: redirect() });
+        if (error) return { ok: false, error, message: friendlyError(error) };
+        return { ok: true, error: null, message: '' };
+      } catch (err) { return { ok: false, error: err, message: friendlyError(err) }; }
+    }
+
+    // Set a new password (used after the user returns via the recovery link).
+    async function updatePassword({ password }) {
+      if (!state.supabase) return notConfigured;
+      try {
+        const { error } = await state.supabase.auth.updateUser({ password: String(password || '') });
+        if (error) return { ok: false, error, message: friendlyError(error) };
+        return { ok: true, error: null, message: '' };
+      } catch (err) { return { ok: false, error: err, message: friendlyError(err) }; }
+    }
+
+    return { signUp, logIn, resetPassword, updatePassword };
   }
 
-  // Higher-level controller for the sign-in dialog flow. Holds the F-2..F-5
-  // guarantees in one testable place:
-  //  - Every attempt takes a monotonic op id (state.authOpId). A response is
-  //    applied ONLY if its op is still current; otherwise it is dropped (F-5:
-  //    stale responses after close / email change / sign-out / new attempt).
-  //  - try/catch/finally guarantees the busy flag is cleared even on a thrown
-  //    (e.g. network) rejection, so loading can never stick (F-4), and a stale
-  //    op can never clear a newer attempt's busy flag (F-3).
-  // deps: { state, ops:{send,verify}, persistPending(), render(), toast(), focusDialog?(), onSignedIn?() }
+  // Dialog-flow controller. Keeps the hardening guarantees in one testable place:
+  //  - monotonic op id (state.authOpId): a response is applied ONLY if its op is
+  //    still current, so responses after close / mode change / sign-out / a newer
+  //    attempt are dropped (stale-response invalidation).
+  //  - try/catch/finally: the busy flag always clears, even on a thrown rejection,
+  //    and a stale op can't clear a newer attempt's busy flag.
+  //  - Passwords are passed straight to ops and never stored on state.
+  // deps: { state, ops:{signUp,logIn,resetPassword,updatePassword}, render, toast,
+  //         focusDialog?, onSignedIn?, clearAccountState?, clearLocal? }
   function createController(deps) {
-    const { state, ops, persistPending, render, toast, focusDialog, onSignedIn, clearAccountState, clearLocal } = deps;
+    const { state, ops, render, toast, focusDialog, onSignedIn, clearAccountState, clearLocal } = deps;
     const say = (m) => { if (toast && m) toast(m); };
     const focus = () => { if (focusDialog) focusDialog(); };
 
+    async function run(fn) {
+      const op = ++state.authOpId;
+      state.authBusy = true; render();
+      let res;
+      try { res = await fn(); }
+      catch (err) { res = { ok: false, message: 'Something went wrong. Please try again.' }; }
+      finally { if (op === state.authOpId) state.authBusy = false; }
+      if (op !== state.authOpId) return { superseded: true };
+      return res;
+    }
+
+    async function register({ name, email, password }) {
+      state.authName = name; state.authEmail = email;
+      const res = await run(() => ops.signUp({ name, email, password }));
+      if (res.superseded) return res;
+      if (res.ok) {
+        if (res.session) { state.authOpen = false; render(); if (onSignedIn) onSignedIn(); say('Welcome to WahalaVerse 🎉'); }
+        else { state.authStage = 'login'; render(); focus(); say('Account created — check your email to verify, then log in.'); }
+      } else { render(); say(res.message || 'Could not create your account'); }
+      return res;
+    }
+
+    async function login({ email, password }) {
+      state.authEmail = email;
+      const res = await run(() => ops.logIn({ email, password }));
+      if (res.superseded) return res;
+      if (res.ok) {
+        // onAuthStateChange sets the user + loads the profile; just close the dialog.
+        state.authOpen = false; state.authEmail = ''; state.authName = ''; render();
+        if (onSignedIn) onSignedIn(); say('Signed in 🎉');
+      } else { render(); say(res.message || 'Could not sign in'); }
+      return res;
+    }
+
+    async function sendReset({ email }) {
+      state.authEmail = email;
+      const res = await run(() => ops.resetPassword({ email }));
+      if (res.superseded) return res;
+      if (res.ok) { state.authStage = 'login'; render(); focus(); say('Password reset link sent — check your email.'); }
+      else { render(); say(res.message || 'Could not send the reset email'); }
+      return res;
+    }
+
+    async function updatePassword({ password }) {
+      const res = await run(() => ops.updatePassword({ password }));
+      if (res.superseded) return res;
+      if (res.ok) { state.authStage = 'login'; state.authOpen = false; render(); say('Password updated — you can log in.'); }
+      else { render(); focus(); say(res.message || 'Could not update your password'); }
+      return res;
+    }
+
     // Sign out: clear ALL local identity + account state and RE-RENDER synchronously
-    // BEFORE awaiting the backend, so the previous account's data can never stay on
-    // screen during a slow signOut() (B-2). A rejected signOut() is reported
-    // honestly — the local session is already cleared, but we do not claim a clean
-    // server sign-out.
+    // BEFORE awaiting the backend, so the previous account's data can never linger
+    // during a slow signOut() (B-2). A rejected signOut() is reported honestly.
     async function signOut() {
       state.authEpoch++; state.authOpId++;
       state.user = null;
       if (clearAccountState) clearAccountState();
-      state.authEmail = ''; state.authName = '';
-      state.authSending = false; state.authVerifying = false;
+      state.authEmail = ''; state.authName = ''; state.authBusy = false;
       if (clearLocal) clearLocal();
-      render(); // synchronous: cleared UI shown immediately
+      render();
       try {
-        // Explicit GLOBAL scope: revoke this user's refresh tokens server-side on
-        // ALL devices (not just this tab), which is the safer default for a shared
-        // browser. supabase-js removes the local session from storage as part of
-        // signOut regardless; our state/UI is already cleared above, so a failed
-        // network call still leaves this device locally signed out. (Local-only
-        // scope `{scope:'local'}` is the alternative if we ever want to keep other
-        // devices signed in — evaluated in SECURITY_REVIEW_PHASE_C.md.)
         const res = await (state.supabase ? state.supabase.auth.signOut({ scope: 'global' }) : Promise.resolve({ error: null }));
         if (res && res.error) throw res.error;
         say('Signed out successfully');
@@ -116,40 +181,7 @@
       }
     }
 
-    async function signIn({ name, email }) {
-      const op = ++state.authOpId;
-      state.authName = name; state.authEmail = email; state.authSending = true;
-      render();
-      if (persistPending) persistPending({ email, name });
-      let res;
-      try { res = await ops.send({ email, name }); }
-      catch (err) { res = { ok: false, message: 'Could not send the sign-in link' }; }
-      finally { if (op === state.authOpId) state.authSending = false; }
-      if (op !== state.authOpId) return { superseded: true };   // F-5
-      if (res.ok) { state.authStage = 'sent'; render(); focus(); say('Check your email for a link or code 📩'); }
-      else { render(); say(res.message || 'Could not send the sign-in link'); }
-      return res;
-    }
-
-    async function verify({ token }) {
-      const op = ++state.authOpId;
-      const email = state.authEmail;
-      state.authVerifying = true;
-      render();
-      let res;
-      try { res = await ops.verify({ email, token }); }
-      catch (err) { res = { ok: false, message: 'That code did not work' }; }
-      finally { if (op === state.authOpId) state.authVerifying = false; }
-      if (op !== state.authOpId) return { superseded: true };   // F-5
-      if (res.ok) {
-        state.authOpen = false; state.authStage = 'form';
-        state.authEmail = ''; state.authName = '';             // F-2
-        render(); if (onSignedIn) onSignedIn(); say('Signed in 🎉');
-      } else { render(); focus(); say(res.message || 'That code did not work'); }
-      return res;
-    }
-
-    return { signIn, verify, signOut };
+    return { register, login, sendReset, updatePassword, signOut };
   }
 
   return { create, createController, friendlyError };

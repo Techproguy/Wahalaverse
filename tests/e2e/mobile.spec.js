@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./fixtures');
 
 // Force a phone viewport regardless of the project so these assertions are
 // deterministic.
