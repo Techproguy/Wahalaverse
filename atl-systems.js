@@ -56,29 +56,47 @@
     return cap;
   }
 
-  // Distribute an exit value with NON-PARTICIPATING liquidation preferences:
-  // each preferred holder takes the greater of (prefMult × invested) or its
-  // as-converted common share; the remainder splits among the rest by shares.
-  // Returns the integer proceeds for `id` (this is how a 3× down-round can leave
-  // a founder with almost nothing on a real exit).
-  function capExitProceeds(cap, exitValue, id) {
-    if (exitValue <= 0) return 0;
+  // Full exit WATERFALL with NON-PARTICIPATING liquidation preferences. Returns a
+  // { holderId: proceeds } map whose values sum to exitValue (proceeds are conserved).
+  //  - If the exit can't cover the preference stack, preferred holders share the whole
+  //    exit pro-rata by their preference claim; common holders get nothing.
+  //  - Otherwise each preferred holder ELECTS the better of its preference
+  //    (prefMult × invested) or CONVERTING to common; non-converters take their pref,
+  //    and the remainder is split among common + converters by shares.
+  // This is the mechanic by which a 3× down-round can leave a founder with ~nothing on
+  // a real exit, while a big exit makes preferred holders convert and share the upside.
+  function capExitWaterfall(cap, exitValue) {
+    const out = {};
+    cap.holders.forEach(h => { out[h.id] = 0; });
+    if (exitValue <= 0) return out;
     const total = capTotal(cap);
-    const taking = {};
-    let remaining = exitValue;
-    for (const h of cap.holders) {
-      if (h.prefMult > 0 && h.invested > 0) {
-        const asConverted = (h.shares / total) * exitValue;
-        const prefAmount = h.prefMult * h.invested;
-        if (prefAmount > asConverted) { taking[h.id] = prefAmount; remaining -= prefAmount; }
-      }
+    const isPref = h => h.prefMult > 0 && h.invested > 0;
+    const claim = h => h.prefMult * h.invested;
+    const prefHolders = cap.holders.filter(isPref);
+    const stack = prefHolders.reduce((t, h) => t + claim(h), 0);
+
+    if (exitValue <= stack) {                           // preference stack underwater
+      for (const h of prefHolders) out[h.id] = stack > 0 ? claim(h) / stack * exitValue : 0;
+      return out;                                       // common gets 0
     }
-    if (remaining < 0) remaining = 0;
-    const common = cap.holders.filter(h => !(h.id in taking));
-    const commonShares = common.reduce((t, h) => t + h.shares, 0);
-    for (const h of common) taking[h.id] = commonShares > 0 ? (h.shares / commonShares) * remaining : 0;
-    return Math.max(0, Math.round(taking[id] || 0));
+    // Conversion election: convert if as-converted share of the whole exit beats the pref.
+    const converter = new Set();
+    for (const h of prefHolders) {
+      if ((h.shares / total) * exitValue > claim(h)) converter.add(h.id);
+    }
+    let taken = 0;
+    for (const h of prefHolders) if (!converter.has(h.id)) { out[h.id] = claim(h); taken += claim(h); }
+    const remaining = exitValue - taken;
+    const pool = cap.holders.filter(h => !isPref(h) || converter.has(h.id)); // common + converters
+    const poolShares = pool.reduce((t, h) => t + h.shares, 0);
+    for (const h of pool) out[h.id] += poolShares > 0 ? (h.shares / poolShares) * remaining : 0;
+    return out;
   }
 
-  return { capFound, capTotal, capOwnership, capRaise, capPool, capExitProceeds };
+  // Convenience: integer proceeds for a single holder from the waterfall.
+  function capExitProceeds(cap, exitValue, id) {
+    return Math.max(0, Math.round(capExitWaterfall(cap, exitValue)[id] || 0));
+  }
+
+  return { capFound, capTotal, capOwnership, capRaise, capPool, capExitWaterfall, capExitProceeds };
 });
