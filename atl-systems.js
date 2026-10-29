@@ -140,5 +140,34 @@
     return Math.max(0, Math.round(capExitWaterfall(cap, exitValue)[id] || 0));
   }
 
-  return { capFound, capTotal, capOwnership, capRaise, capPool, capExitWaterfall, capExitProceeds, boardRemovalVote };
+  // ---- Portfolio (Billionaire) ---------------------------------------------
+  // A portfolio is an array of holdings { id, value, liquidity (0..1), volatility }.
+  // Models the gap between PAPER net worth and spendable CASH: illiquid assets sell at a
+  // discount, and volatile assets swing hardest in a shock.
+  const pfValue = (pf) => pf.reduce((t, h) => t + h.value, 0);
+
+  // Sell a fraction of a holding; returns cash proceeds AFTER an illiquidity discount
+  // (liquid assets fetch ~full value, illiquid ones much less). Mutates the holding.
+  function pfSell(pf, id, fraction) {
+    const h = pf.find(x => x.id === id);
+    if (!h) return 0;
+    const f = Math.max(0, Math.min(1, fraction));
+    const sold = h.value * f;
+    const proceeds = sold * (0.6 + 0.4 * h.liquidity); // 60%–100% depending on liquidity
+    h.value = Math.max(0, h.value - sold);
+    return Math.round(proceeds);
+  }
+
+  // Apply a market shock (e.g. -0.3). Volatility amplifies the move. Mutates values.
+  function pfApplyShock(pf, shockPct) {
+    for (const h of pf) h.value = Math.max(0, Math.round(h.value * (1 + shockPct * h.volatility)));
+    return pf;
+  }
+
+  const netWorth = (cash, pf, debt) => cash + pfValue(pf) - (debt || 0);
+
+  return {
+    capFound, capTotal, capOwnership, capRaise, capPool, capExitWaterfall, capExitProceeds, boardRemovalVote,
+    pfValue, pfSell, pfApplyShock, netWorth,
+  };
 });

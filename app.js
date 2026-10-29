@@ -12,7 +12,7 @@ const decodeChallenge = C.decodeChallenge;
 const ATL = window.WahalaATL;
 // Assume Their Life role packs. Founder Life first (active core scope); Afrobeats is
 // an additional role. CEO / Billionaire / Political register here as they are built.
-const ATL_PACKS = [['founder', window.WAHALA_ATL_FOUNDER], ['ceo', window.WAHALA_ATL_CEO], ['afrobeats', window.WAHALA_ATL_AFROBEATS]].filter(x => x[1]);
+const ATL_PACKS = [['founder', window.WAHALA_ATL_FOUNDER], ['ceo', window.WAHALA_ATL_CEO], ['billionaire', window.WAHALA_ATL_BILLIONAIRE], ['afrobeats', window.WAHALA_ATL_AFROBEATS]].filter(x => x[1]);
 const curPack = () => (ATL_PACKS.find(x => x[0] === state.atlRole) || [])[1] || null;
 const root = document.getElementById('app');
 const state = {page:'home',authOpen:false,supabase:null,cloudReady:false,user:null,profile:null,
