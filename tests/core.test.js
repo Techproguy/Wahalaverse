@@ -121,6 +121,55 @@ test('decodeChallenge rejects a malformed v2 payload', async () => {
   await assert.rejects(() => C.decodeChallenge(badToken), /Bad challenge/);
 });
 
+// --- Create Your Own Wahala draft autosave (pure helpers) --------------------
+test('isMeaningfulCustomDraft: pristine blank is NOT saved, any content IS', () => {
+  const blank = [{ q: '', a: ['', ''], answer: null }, { q: '', a: ['', ''], answer: null }];
+  assert.equal(C.isMeaningfulCustomDraft('', blank), false);
+  assert.equal(C.isMeaningfulCustomDraft('  ', blank), false);
+  assert.equal(C.isMeaningfulCustomDraft('Tolu', blank), true);         // name typed
+  assert.equal(C.isMeaningfulCustomDraft('', [{ q: 'Fav?', a: ['', ''], answer: null }]), true); // question typed
+  assert.equal(C.isMeaningfulCustomDraft('', [{ q: '', a: ['Lagos', ''], answer: null }]), true); // option typed
+});
+
+test('sanitizeCustomDraft restores an INCOMPLETE draft (no final validation required)', () => {
+  const raw = { v: C.CC_DRAFT_VERSION, name: 'Tolu', questions: [{ q: 'Fav jollof?', a: ['Party', ''], answer: null }] };
+  const safe = C.sanitizeCustomDraft(raw);
+  assert.ok(safe);
+  assert.equal(safe.name, 'Tolu');
+  assert.equal(safe.questions.length, 1);          // a single, half-finished question is fine
+  assert.deepEqual(safe.questions[0].a, ['Party', '']); // empty option preserved
+  assert.equal(safe.questions[0].answer, null);
+});
+
+test('sanitizeCustomDraft rejects unusable / corrupted blobs', () => {
+  assert.equal(C.sanitizeCustomDraft(null), null);
+  assert.equal(C.sanitizeCustomDraft('nope'), null);
+  assert.equal(C.sanitizeCustomDraft({ v: 999, questions: [{ q: 'x', a: ['a', 'b'] }] }), null); // wrong version
+  assert.equal(C.sanitizeCustomDraft({ v: C.CC_DRAFT_VERSION, questions: [] }), null);            // no questions
+  assert.equal(C.sanitizeCustomDraft({ v: C.CC_DRAFT_VERSION, questions: 'bad' }), null);
+  assert.equal(C.sanitizeCustomDraft({ v: C.CC_DRAFT_VERSION, questions: [null] }), null);        // malformed question
+});
+
+test('sanitizeCustomDraft clamps to the field limits (size + structure safety)', () => {
+  const L = C.CUSTOM_LIMITS;
+  const raw = {
+    v: C.CC_DRAFT_VERSION,
+    name: 'x'.repeat(200),
+    questions: [
+      { q: 'y'.repeat(500), a: Array.from({ length: 12 }, (_, i) => 'o'.repeat(200) + i), answer: 99 }, // too many/too long options, bad answer
+      { q: 'ok', a: ['only-one'], answer: 0 }, // fewer than min options -> padded
+    ].concat(Array.from({ length: 20 }, () => ({ q: 'extra', a: ['a', 'b'], answer: 0 }))), // too many questions
+  };
+  const safe = C.sanitizeCustomDraft(raw);
+  assert.ok(safe.name.length <= L.nameLen);
+  assert.ok(safe.questions.length <= L.maxQuestions);                 // question count capped
+  assert.ok(safe.questions[0].q.length <= L.questionLen);             // question text clamped
+  assert.ok(safe.questions[0].a.length <= L.maxOptions);              // option count capped
+  assert.ok(safe.questions[0].a.every(o => o.length <= L.optionLen)); // option text clamped
+  assert.equal(safe.questions[0].answer, null);                       // out-of-range answer dropped
+  assert.ok(safe.questions[1].a.length >= L.minOptions);              // padded up to the minimum
+});
+
 test('scoreQuiz counts exact matches', () => {
   assert.equal(C.scoreQuiz(VALID_ANSWERS, VALID_ANSWERS), 7);
   assert.equal(C.scoreQuiz([0, 0, 0, 0, 0, 0, 0], VALID_ANSWERS), 1); // only index 5 (answer 0) matches
