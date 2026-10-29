@@ -316,3 +316,81 @@ A prototype of this slice is acceptable only if:
 _Recommended next step after review: approve the Afrobeats slice (or pick an alternative),
 then authorize a thin engine spike — engine core + this one role pack + tests — on a
 dedicated branch, before any UI polish or additional role packs._
+
+---
+
+## 10. Core role-category roadmap (CORE — not optional)
+
+The following four role categories are **core** to Assume Their Life (owner directive,
+2026-10-29). The Afrobeats "Breakout Year" slice is the **first playable** role; it proves
+the mechanics. The other three are **roadmapped, not yet built** — recorded here so the
+shared engine is designed to accommodate them **without a rewrite**. Each must deliver
+genuine agency, delayed consequences, constraints, changing circumstances and explainable
+outcomes. **None may be reduced to simple money/reputation meters.**
+
+> **A billionaire is not necessarily a CEO, and a CEO is not necessarily a billionaire.**
+> These are distinct lives with distinct systems and are modelled as separate role packs —
+> never one "rich person" template with a swapped name.
+
+### How the shared engine accommodates them (no rewrite)
+The engine (`atl-engine.js`) is role-agnostic; each category is a **role pack** that
+declares its own reality through the pack contract:
+- **`pack.vars`** — each role defines its **own** meters and ranges (not a fixed six).
+- **`choice.ops(run)`** — escape hatch for role-specific *systems*: ownership/cap-table
+  changes, asset purchases/sales, acquisitions, debt covenants, legislative vote counts —
+  arbitrary logic over `run.custom`, with no engine change.
+- **`pack.derive(run)`** — recompute composite measures (e.g. net worth, approval index).
+- **`choice.seeds` / `commit` / `memory`** — delayed consequences, long-term commitments
+  and stakeholder memory, already proven in the Afrobeats pack.
+
+### 10.1 Billionaire Life
+- **Distinctive systems:** a **portfolio of assets and holdings** (equity stakes, property,
+  private companies, cash vs illiquid paper wealth), **influence/soft power**, family and
+  succession, philanthropy, legal/regulatory exposure, lifestyle burn. Paper net worth is
+  **not** spendable cash (a hard constraint).
+- **Example consequential decisions:** liquidate a stake vs borrow against it; back a risky
+  venture; manage a family/succession dispute; respond to a lawsuit or public scandal;
+  philanthropic bet vs empire expansion.
+- **Outcome dimensions:** liquidity, net worth (derived), influence, family trust, legal
+  standing, legacy.
+- **Engine use:** `custom.portfolio[]` mutated via `ops`; `derive` computes net worth;
+  `vars` for liquidity/influence/legalExposure; seeds for delayed market/legal cascades.
+
+### 10.2 CEO / Founder Life
+- **Distinctive systems:** **company operations and runway**, a **cap table / ownership &
+  board control**, shareholders and board confidence, hiring/firing and staff morale,
+  fundraising rounds (dilution), acquisitions/M&A, competition and market share, product
+  reliability — **business survival**.
+- **Example consequential decisions:** raise vs cut costs (layoffs); ship vs delay; accept a
+  dilutive round or a board seat; make an acquisition; respond to a competitor or an outage.
+- **Outcome dimensions:** runway/cash, valuation, founder control, board confidence,
+  operational capacity, market position.
+- **Engine use:** `custom.capTable` mutated via `ops` (dilution/control math); `derive`
+  recomputes valuation/control; board/competitor stakeholders in `memory`; seeds for
+  delayed covenant/competition/quality cascades. (This mirrors the tech-CEO structure
+  already demonstrated in `ASSUME_THEIR_LIFE_SCENARIO_MAP.md`.)
+
+### 10.3 Celebrity / Afrobeats Life — **FIRST PLAYABLE**
+- Built as the spike (this document, §1–§8): fame, the entertainment business, public
+  reputation and relationships. Proves the engine end-to-end.
+
+### 10.4 Political Leadership
+- **Distinctive systems:** institutions and separation of powers, **budgets and fiscal
+  constraints**, legislature/coalition, policy feasibility, security, cabinet/advisers,
+  citizens and public accountability, media and diplomacy. A leader **cannot** unilaterally
+  enact everything (credible institutional constraints, per Spec §5).
+- **Example consequential decisions:** fund competing priorities under a fixed budget;
+  negotiate a policy through the legislature; respond to a public emergency or protest;
+  manage cabinet trust; a diplomatic trade-off.
+- **Outcome dimensions:** approval, service delivery, fiscal stability, institutional trust,
+  coalition strength.
+- **Engine use:** `vars` for approval/fiscal/coalition; `ops` for budget allocation and
+  vote-count logic; `derive` for a service-delivery index; seeds for delayed
+  policy/economic/unrest cascades. **Content rule:** role-based, not a named real
+  politician in beta (defamation/sensitivity); any named figure follows Spec §4–§5.
+
+### Build order (proposed, after Afrobeats proves fun)
+Afrobeats (done, spike) → **CEO/Founder** (reuses the proven tech-CEO structure) →
+**Billionaire** (adds the portfolio system) → **Political** (adds budget/coalition
+systems). Each is a separate branch/PR with its own tests; **do not** expand the Afrobeats
+prototype into all four packs now. One role pack at a time, each gated on review.
