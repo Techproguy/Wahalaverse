@@ -59,7 +59,16 @@ reading and exercising the code, not by assuming placeholders are complete.
   session (`sessionStorage`), so another session's / person's guest history is never auto-synced.
 
 ## Milestone 2 progress
-- **Phase A** (auth: magic link + OTP fallback) — done.
+- **Auth method changed (2026-10-29):** switched from OTP/magic-link to **email + password**
+  (sign-up, login, password reset/recovery); guest-first preserved; passwords only in Supabase Auth.
+- **Status snapshot (2026-10-29):**
+  - Automated tests: **76 unit + 22 E2E passing**.
+  - Live email/password login on Lava: **BLOCKED** by Supabase built-in email-sending **rate limit**
+    (paused by owner; revisit after the quota resets). Do **not** assume the existing disposable
+    account has a password or is confirmed — must be checked on resume.
+  - Live RLS / security checks: **PENDING**.
+  - PR #2: **UNMERGED**.
+- **Phase A** (auth) — done (now email+password).
 - **Phase B** (pending-name isolation F-1..F-5, secure profile update, RLS scaffold, B-1/B-2) — done.
 - **Phase C** (remove challenge enumeration via `get_challenge` RPC + owner-scoped reads) — done
   (code + schema + migration + tests; not applied to a live project).
