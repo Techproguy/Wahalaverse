@@ -95,7 +95,7 @@ Supabase Auth stores account email separately. Guest links encode the quiz answe
 - The game score is calculated by the browser; do not use it for monetary prizes, lotteries or anything security-sensitive.
 - Add an authorized `og:image` and proper favicon for better social sharing previews when deployed. Meta title/description are included already.
 - Add responsible, opt-in analytics **after** putting a privacy notice and consent controls in place where required; the current MVP uses no third-party analytics tracker.
-- CDN dependencies: fonts are now **self-hosted** (`fonts/`), so no request goes to Google. The Supabase JS library still loads from `esm.sh` **only when cloud credentials are configured** (not in guest/production); vendor it before enabling cloud in production. Security headers (incl. a CSP) are set in `vercel.json`.
+- CDN dependencies: fonts are now **self-hosted** (`fonts/`), so no request goes to Google. The Supabase JS library still loads from `esm.sh` **only when cloud credentials are configured** (not in guest/production); before enabling cloud in production, **bundle it and pin an exact version** rather than relying on SRI for dynamic imports. Security headers (incl. a CSP) are set in `vercel.json`.
 
 ## 6. Files
 
