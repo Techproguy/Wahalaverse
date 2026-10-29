@@ -54,27 +54,85 @@
   // --- Guest challenge link encoding ----------------------------------------
   // Answers are base64url-encoded into the URL. Observable to technical users —
   // suitable for casual fun, NOT for prizes/competitions.
-  function encodeChallenge(ch) {
-    const src = JSON.stringify({v:1, n:ch.owner_name, t:ch.title, a:ch.answers});
-    const bytes = new TextEncoder().encode(src);
+  const MAX_TOKEN = 3500; // keep guest links short enough to share (e.g. WhatsApp)
+  // Limits for "Create Your Own Wahala" (v2). Tunable; kept small so the whole
+  // custom challenge still fits in a shareable URL.
+  const CUSTOM_LIMITS = Object.freeze({
+    minQuestions: 3, maxQuestions: 7, minOptions: 2, maxOptions: 4,
+    questionLen: 120, optionLen: 60, nameLen: 30, titleLen: 80,
+  });
+
+  function b64urlEncode(obj) {
+    const bytes = new TextEncoder().encode(JSON.stringify(obj));
     return btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''))
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
-
-  function decodeChallenge(token) {
-    if (!token || token.length > 3500) throw new Error('Bad link');
+  function b64urlDecode(token) {
+    if (!token || token.length > MAX_TOKEN) throw new Error('Bad link');
     const b64 = token.replace(/-/g, '+').replace(/_/g, '/');
     const bin = atob(b64);
     const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-    const ch = JSON.parse(new TextDecoder().decode(bytes));
-    if (ch.v !== 1
-      || typeof ch.n !== 'string' || ch.n.length > 35
-      || typeof ch.t !== 'string' || ch.t.length > 80
-      || !Array.isArray(ch.a) || ch.a.length !== QUESTION_COUNT
-      || !ch.a.every(x => Number.isInteger(x) && x >= 0 && x <= 2)) {
-      throw new Error('Bad challenge');
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+
+  // v1 — Quick Challenge (the 7 preset questions). Unchanged format.
+  function encodeChallenge(ch) {
+    return b64urlEncode({ v: 1, n: ch.owner_name, t: ch.title, a: ch.answers });
+  }
+
+  // v2 — Create Your Own Wahala. Carries the author's own questions + options.
+  // ch: { owner_name, title, questions:[{q, a:[options]}], answers:[intIndex] }
+  function encodeCustomChallenge(ch) {
+    const q = (ch.questions || []).map(x => ({ q: x.q, o: x.a }));
+    return b64urlEncode({ v: 2, n: ch.owner_name, t: ch.title, a: ch.answers, q });
+  }
+
+  // Pure validator for a custom challenge (used by the builder AND the decoder, so
+  // the two can never disagree). Returns { ok:true } or { ok:false, error }.
+  function validateCustomChallenge(ch) {
+    const L = CUSTOM_LIMITS;
+    if (!ch || typeof ch !== 'object') return { ok: false, error: 'empty' };
+    const name = String(ch.owner_name || '').trim();
+    if (name.length < 2 || name.length > L.nameLen) return { ok: false, error: 'name' };
+    const title = String(ch.title || '').trim();
+    if (title.length < 1 || title.length > L.titleLen) return { ok: false, error: 'title' };
+    const qs = ch.questions;
+    if (!Array.isArray(qs) || qs.length < L.minQuestions || qs.length > L.maxQuestions) return { ok: false, error: 'questions-count' };
+    if (!Array.isArray(ch.answers) || ch.answers.length !== qs.length) return { ok: false, error: 'answers-count' };
+    for (let i = 0; i < qs.length; i++) {
+      const q = qs[i];
+      if (!q || typeof q.q !== 'string' || !q.q.trim() || q.q.trim().length > L.questionLen) return { ok: false, error: 'question-' + i };
+      if (!Array.isArray(q.a) || q.a.length < L.minOptions || q.a.length > L.maxOptions) return { ok: false, error: 'options-count-' + i };
+      for (const opt of q.a) {
+        if (typeof opt !== 'string' || !opt.trim() || opt.trim().length > L.optionLen) return { ok: false, error: 'option-' + i };
+      }
+      const ans = ch.answers[i];
+      if (!Number.isInteger(ans) || ans < 0 || ans >= q.a.length) return { ok: false, error: 'answer-' + i };
     }
-    return {type:'guest', owner_name:ch.n, title:ch.t, answers:ch.a, template_version:1};
+    return { ok: true };
+  }
+
+  // Decodes BOTH v1 (Quick) and v2 (Custom) guest links. Existing v1 links keep working.
+  function decodeChallenge(token) {
+    const ch = b64urlDecode(token);
+    if (ch.v === 1) {
+      if (typeof ch.n !== 'string' || ch.n.length > 35
+        || typeof ch.t !== 'string' || ch.t.length > 80
+        || !Array.isArray(ch.a) || ch.a.length !== QUESTION_COUNT
+        || !ch.a.every(x => Number.isInteger(x) && x >= 0 && x <= 2)) {
+        throw new Error('Bad challenge');
+      }
+      return { type: 'guest', owner_name: ch.n, title: ch.t, answers: ch.a, template_version: 1 };
+    }
+    if (ch.v === 2) {
+      const norm = {
+        owner_name: ch.n, title: ch.t, answers: ch.a,
+        questions: Array.isArray(ch.q) ? ch.q.map(x => ({ q: x && x.q, a: x && x.o })) : null,
+      };
+      if (!validateCustomChallenge(norm).ok) throw new Error('Bad challenge');
+      return { type: 'guest', owner_name: norm.owner_name, title: norm.title, questions: norm.questions, answers: norm.answers, template_version: 2 };
+    }
+    throw new Error('Bad challenge');
   }
 
   // --- Game logic ------------------------------------------------------------
@@ -113,9 +171,9 @@
   }
 
   return {
-    Q, QUESTION_COUNT, DEMO, SCENES, SIM_START,
+    Q, QUESTION_COUNT, DEMO, SCENES, SIM_START, CUSTOM_LIMITS,
     escapeHtml, titleCase, formatNaira,
-    encodeChallenge, decodeChallenge,
+    encodeChallenge, encodeCustomChallenge, decodeChallenge, validateCustomChallenge,
     scoreQuiz, applySimChoice, syncableActivities,
   };
 });

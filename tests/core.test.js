@@ -50,6 +50,53 @@ test('decodeChallenge rejects overlong owner name', () => {
   assert.throws(() => C.decodeChallenge(bad), /Bad challenge/);
 });
 
+// --- Create Your Own Wahala (v2 custom challenges) ---------------------------
+const CUSTOM = {
+  owner_name: 'Tolu 😎',
+  title: 'Guess my vibes',
+  questions: [
+    { q: 'Fav jollof?', a: ['Party', 'Home', 'Both'] },
+    { q: 'Lagos or Abuja?', a: ['Lagos', 'Abuja'] },
+    { q: 'Owambe or Netflix?', a: ['Owambe', 'Netflix', 'Depends'] },
+  ],
+  answers: [2, 0, 1],
+};
+
+test('validateCustomChallenge accepts a well-formed custom challenge', () => {
+  assert.deepEqual(C.validateCustomChallenge(CUSTOM), { ok: true });
+});
+
+test('custom challenge (v2) round-trips through encode/decode incl. emoji + authored text', () => {
+  const back = C.decodeChallenge(C.encodeCustomChallenge(CUSTOM));
+  assert.equal(back.template_version, 2);
+  assert.equal(back.owner_name, 'Tolu 😎');
+  assert.equal(back.questions.length, 3);
+  assert.deepEqual(back.questions[0].a, ['Party', 'Home', 'Both']);
+  assert.deepEqual(back.answers, [2, 0, 1]);
+});
+
+test('v1 Quick Challenge links still decode after v2 was added (back-compat)', () => {
+  const back = C.decodeChallenge(C.encodeChallenge({ owner_name: 'Zee', title: 'x', answers: VALID_ANSWERS }));
+  assert.equal(back.template_version, 1);
+  assert.equal('questions' in back, false);
+});
+
+test('validateCustomChallenge rejects bad shapes', () => {
+  const bad = (over) => C.validateCustomChallenge({ ...CUSTOM, ...over });
+  assert.equal(bad({ owner_name: 'x' }).ok, false);                 // name too short
+  assert.equal(bad({ questions: CUSTOM.questions.slice(0, 2) }).ok, false); // < min questions (answers mismatch too)
+  assert.equal(bad({ questions: Array.from({ length: 8 }, () => ({ q: 'q', a: ['a', 'b'] })), answers: Array(8).fill(0) }).ok, false); // > max
+  assert.equal(bad({ answers: [2, 0] }).ok, false);                 // answers length != questions
+  assert.equal(C.validateCustomChallenge({ ...CUSTOM, questions: [{ q: 'one option', a: ['only'] }, CUSTOM.questions[1], CUSTOM.questions[2]], answers: [0, 0, 1] }).ok, false); // < 2 options
+  assert.equal(C.validateCustomChallenge({ ...CUSTOM, answers: [9, 0, 1] }).ok, false); // answer index out of range
+  assert.equal(C.validateCustomChallenge({ ...CUSTOM, questions: [{ q: 'x'.repeat(200), a: ['a', 'b'] }, CUSTOM.questions[1], CUSTOM.questions[2]], answers: [0, 0, 1] }).ok, false); // question too long
+});
+
+test('decodeChallenge rejects a malformed v2 payload', () => {
+  const badToken = C.encodeCustomChallenge({ owner_name: 'Z', title: 't', questions: [{ q: 'only one', a: ['a', 'b'] }], answers: [0] });
+  assert.throws(() => C.decodeChallenge(badToken), /Bad challenge/);
+});
+
 test('scoreQuiz counts exact matches', () => {
   assert.equal(C.scoreQuiz(VALID_ANSWERS, VALID_ANSWERS), 7);
   assert.equal(C.scoreQuiz([0, 0, 0, 0, 0, 0, 0], VALID_ANSWERS), 1); // only index 5 (answer 0) matches
