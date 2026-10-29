@@ -54,27 +54,121 @@
   // --- Guest challenge link encoding ----------------------------------------
   // Answers are base64url-encoded into the URL. Observable to technical users —
   // suitable for casual fun, NOT for prizes/competitions.
-  function encodeChallenge(ch) {
-    const src = JSON.stringify({v:1, n:ch.owner_name, t:ch.title, a:ch.answers});
-    const bytes = new TextEncoder().encode(src);
-    return btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  // Final share-token length cap. Compressed v2 links for realistic (even heavy,
+  // emoji-laden, 10-question) challenges measure a few hundred chars; this cap with
+  // a clear "edit it" path handles the rare overflow. Not a claim that every
+  // theoretical maximum fits.
+  const MAX_TOKEN = 4000;
+  const MAX_DECOMPRESSED = 16384; // anti zip-bomb guard on decode
+  // Limits for "Create Your Own Wahala" (v2).
+  const CUSTOM_LIMITS = Object.freeze({
+    minQuestions: 3, maxQuestions: 10, minOptions: 2, maxOptions: 4,
+    questionLen: 120, optionLen: 60, nameLen: 30, titleLen: 80,
+  });
+
+  const toB64url = (bytes) => btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const fromB64url = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+
+  function b64urlEncode(obj) { return toB64url(new TextEncoder().encode(JSON.stringify(obj))); }
+  function b64urlDecode(token) {
+    if (!token || token.length > MAX_TOKEN) throw new Error('Bad link');
+    return JSON.parse(new TextDecoder().decode(fromB64url(token)));
   }
 
-  function decodeChallenge(token) {
-    if (!token || token.length > 3500) throw new Error('Bad link');
-    const b64 = token.replace(/-/g, '+').replace(/_/g, '/');
-    const bin = atob(b64);
-    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-    const ch = JSON.parse(new TextDecoder().decode(bytes));
-    if (ch.v !== 1
-      || typeof ch.n !== 'string' || ch.n.length > 35
-      || typeof ch.t !== 'string' || ch.t.length > 80
-      || !Array.isArray(ch.a) || ch.a.length !== QUESTION_COUNT
-      || !ch.a.every(x => Number.isInteger(x) && x >= 0 && x <= 2)) {
-      throw new Error('Bad challenge');
+  // gzip helpers (Web Streams — available in modern browsers and Node 18+).
+  async function gzip(bytes) {
+    const cs = new CompressionStream('gzip');
+    const w = cs.writable.getWriter(); w.write(bytes); w.close();
+    return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+  }
+  async function gunzip(bytes) {
+    const ds = new DecompressionStream('gzip');
+    const w = ds.writable.getWriter(); w.write(bytes); w.close();
+    return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+  }
+  const canCompress = typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
+
+  // v1 — Quick Challenge (the 7 preset questions). Unchanged, sync, byte-identical.
+  function encodeChallenge(ch) {
+    return b64urlEncode({ v: 1, n: ch.owner_name, t: ch.title, a: ch.answers });
+  }
+
+  // v2 — Create Your Own Wahala. Carries the author's own questions + options.
+  // Compressed (gzip) and prefixed with '~' so it's unambiguous vs the plain v1
+  // format; falls back to plain base64url if compression is unavailable. Throws
+  // Error('too-long') if the final token exceeds MAX_TOKEN — the builder catches
+  // this and asks the creator to trim (never silently drops questions/answers).
+  // ch: { owner_name, title, questions:[{q, a:[options]}], answers:[intIndex] }
+  async function encodeCustomChallenge(ch) {
+    const q = (ch.questions || []).map(x => ({ q: x.q, o: x.a }));
+    const json = new TextEncoder().encode(JSON.stringify({ v: 2, n: ch.owner_name, t: ch.title, a: ch.answers, q }));
+    let token;
+    if (canCompress) {
+      try { token = '~' + toB64url(await gzip(json)); }
+      catch { token = toB64url(json); }
+    } else {
+      token = toB64url(json);
     }
-    return {type:'guest', owner_name:ch.n, title:ch.t, answers:ch.a, template_version:1};
+    if (token.length > MAX_TOKEN) { const err = new Error('too-long'); err.code = 'too-long'; err.length = token.length; throw err; }
+    return token;
+  }
+
+  // Pure validator for a custom challenge (used by the builder AND the decoder, so
+  // the two can never disagree). Returns { ok:true } or { ok:false, error }.
+  function validateCustomChallenge(ch) {
+    const L = CUSTOM_LIMITS;
+    if (!ch || typeof ch !== 'object') return { ok: false, error: 'empty' };
+    const name = String(ch.owner_name || '').trim();
+    if (name.length < 2 || name.length > L.nameLen) return { ok: false, error: 'name' };
+    const title = String(ch.title || '').trim();
+    if (title.length < 1 || title.length > L.titleLen) return { ok: false, error: 'title' };
+    const qs = ch.questions;
+    if (!Array.isArray(qs) || qs.length < L.minQuestions || qs.length > L.maxQuestions) return { ok: false, error: 'questions-count' };
+    if (!Array.isArray(ch.answers) || ch.answers.length !== qs.length) return { ok: false, error: 'answers-count' };
+    for (let i = 0; i < qs.length; i++) {
+      const q = qs[i];
+      if (!q || typeof q.q !== 'string' || !q.q.trim() || q.q.trim().length > L.questionLen) return { ok: false, error: 'question-' + i };
+      if (!Array.isArray(q.a) || q.a.length < L.minOptions || q.a.length > L.maxOptions) return { ok: false, error: 'options-count-' + i };
+      for (const opt of q.a) {
+        if (typeof opt !== 'string' || !opt.trim() || opt.trim().length > L.optionLen) return { ok: false, error: 'option-' + i };
+      }
+      const ans = ch.answers[i];
+      if (!Number.isInteger(ans) || ans < 0 || ans >= q.a.length) return { ok: false, error: 'answer-' + i };
+    }
+    return { ok: true };
+  }
+
+  // Decodes BOTH v1 (Quick, plain) and v2 (Custom, '~'-prefixed gzip OR plain)
+  // guest links. Async because v2 may need gunzip. Existing v1 links keep working.
+  async function decodeChallenge(token) {
+    if (!token || token.length > MAX_TOKEN) throw new Error('Bad link');
+    let ch;
+    if (token[0] === '~') {
+      const bytes = await gunzip(fromB64url(token.slice(1)));
+      if (bytes.length > MAX_DECOMPRESSED) throw new Error('Bad link'); // anti zip-bomb
+      ch = JSON.parse(new TextDecoder().decode(bytes));
+    } else {
+      ch = b64urlDecode(token);
+    }
+    if (ch.v === 1) {
+      if (typeof ch.n !== 'string' || ch.n.length > 35
+        || typeof ch.t !== 'string' || ch.t.length > 80
+        || !Array.isArray(ch.a) || ch.a.length !== QUESTION_COUNT
+        || !ch.a.every(x => Number.isInteger(x) && x >= 0 && x <= 2)) {
+        throw new Error('Bad challenge');
+      }
+      return { type: 'guest', owner_name: ch.n, title: ch.t, answers: ch.a, template_version: 1 };
+    }
+    if (ch.v === 2) {
+      const norm = {
+        owner_name: ch.n, title: ch.t, answers: ch.a,
+        questions: Array.isArray(ch.q) ? ch.q.map(x => ({ q: x && x.q, a: x && x.o })) : null,
+      };
+      if (!validateCustomChallenge(norm).ok) throw new Error('Bad challenge');
+      return { type: 'guest', owner_name: norm.owner_name, title: norm.title, questions: norm.questions, answers: norm.answers, template_version: 2 };
+    }
+    throw new Error('Bad challenge');
   }
 
   // --- Game logic ------------------------------------------------------------
@@ -112,10 +206,51 @@
     });
   }
 
+  // --- Create Your Own Wahala: device-local draft autosave (pure helpers) -----
+  // These power the `wv_cc_draft` localStorage autosave. They are intentionally
+  // LENIENT: a draft-in-progress is restored even if it does not yet satisfy the
+  // final challenge-generation rules (validateCustomChallenge). They only enforce
+  // *safe structure, size and limits*, so a corrupted or oversized blob is rejected.
+  const CC_DRAFT_VERSION = 1;
+
+  // Is there anything worth saving? (Avoids persisting a pristine blank builder.)
+  function isMeaningfulCustomDraft(name, questions) {
+    if ((name || '').trim().length > 0) return true;
+    if (!Array.isArray(questions)) return false;
+    return questions.some(q => q && (
+      ((q.q || '').trim().length > 0) ||
+      (Array.isArray(q.a) && q.a.some(o => (o || '').trim().length > 0))
+    ));
+  }
+
+  // Normalise an untrusted parsed draft into a safe builder shape, or null if it
+  // cannot be used. Clamps all text to the field limits, caps question/option
+  // counts, pads each question to the minimum option inputs, and drops an
+  // out-of-range marked answer. Never throws.
+  function sanitizeCustomDraft(raw) {
+    const L = CUSTOM_LIMITS;
+    if (!raw || typeof raw !== 'object' || raw.v !== CC_DRAFT_VERSION) return null;
+    if (!Array.isArray(raw.questions) || raw.questions.length === 0) return null;
+    const questions = raw.questions.slice(0, L.maxQuestions).map(q => {
+      if (!q || typeof q !== 'object') return null;
+      const text = typeof q.q === 'string' ? q.q.slice(0, L.questionLen) : '';
+      let a = Array.isArray(q.a) ? q.a.filter(o => typeof o === 'string').map(o => o.slice(0, L.optionLen)) : [];
+      a = a.slice(0, L.maxOptions);
+      while (a.length < L.minOptions) a.push('');
+      let answer = Number.isInteger(q.answer) ? q.answer : null;
+      if (answer != null && (answer < 0 || answer >= a.length)) answer = null;
+      return { q: text, a, answer };
+    });
+    if (questions.some(q => q === null)) return null;
+    const name = typeof raw.name === 'string' ? raw.name.slice(0, L.nameLen) : '';
+    return { name, questions };
+  }
+
   return {
-    Q, QUESTION_COUNT, DEMO, SCENES, SIM_START,
+    Q, QUESTION_COUNT, DEMO, SCENES, SIM_START, CUSTOM_LIMITS, CC_DRAFT_VERSION,
     escapeHtml, titleCase, formatNaira,
-    encodeChallenge, decodeChallenge,
+    encodeChallenge, encodeCustomChallenge, decodeChallenge, validateCustomChallenge,
+    isMeaningfulCustomDraft, sanitizeCustomDraft,
     scoreQuiz, applySimChoice, syncableActivities,
   };
 });
