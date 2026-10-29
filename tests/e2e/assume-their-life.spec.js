@@ -7,7 +7,8 @@ const { test, expect } = require('@playwright/test');
 test('Assume Their Life: a full run reaches an explainable Reckoning', async ({ page }) => {
   await page.goto('/?page=atl');
 
-  // Start screen -> begin the year.
+  // Role picker -> choose Afrobeats -> begin the year.
+  await page.locator('[data-action="atl-pick"][data-role="afrobeats"]').click();
   await expect(page.locator('[data-action="atl-start"]')).toBeVisible();
   await page.locator('[data-action="atl-start"]').click();
 
@@ -35,6 +36,7 @@ test('Assume Their Life: a full run reaches an explainable Reckoning', async ({ 
 
 test('Assume Their Life: a different early path yields a different outcome', async ({ page }) => {
   await page.goto('/?page=atl');
+  await page.locator('[data-action="atl-pick"][data-role="afrobeats"]').click();
   await page.locator('[data-action="atl-start"]').click();
 
   // "Build it right": independent -> keep team -> humble -> go dark -> drop album.
