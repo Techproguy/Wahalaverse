@@ -40,33 +40,20 @@ function mockAuthClient() {
 const tick = () => new Promise(r => setImmediate(r));
 
 // --- Low-level ops -----------------------------------------------------------
-test('signUp passes email/password/display_name + redirect; needsVerification when no session', async () => {
+test('signUp passes email/password/display_name and signs in immediately (no verification)', async () => {
   const m = mockAuthClient();
   const a = Auth.create({ state: { supabase: m.supabase }, getRedirectTo: () => 'https://app.test/' });
   const p = a.signUp({ email: ' z@test.com ', password: 'secretpw', name: 'Zee' });
   await tick();
   const arg = m.calls.signUp[0];
-  assert.equal(arg.email, 'z@test.com');
+  assert.equal(arg.email, 'z@test.com');          // trimmed
   assert.equal(arg.password, 'secretpw');
-  assert.equal(arg.options.data.display_name, 'Zee');
-  assert.equal(arg.options.emailRedirectTo, 'https://app.test/');
-  m.settle('signUp', { data: { user: { id: 'U1' }, session: null }, error: null });
-  const res = await p;
-  assert.equal(res.ok, true);
-  assert.equal(res.needsVerification, true);
-  assert.equal(res.session, null);
-});
-
-test('signUp returns a session when email confirmation is OFF', async () => {
-  const m = mockAuthClient();
-  const a = Auth.create({ state: { supabase: m.supabase }, getRedirectTo: () => 'https://app.test/' });
-  const p = a.signUp({ email: 'z@test.com', password: 'secretpw', name: 'Zee' });
-  await tick();
+  assert.equal(arg.options.data.display_name, 'Zee'); // name stored in auth metadata
+  assert.equal('emailRedirectTo' in arg.options, false, 'no confirmation redirect is requested');
   m.settle('signUp', { data: { user: { id: 'U1' }, session: { access_token: 'x' } }, error: null });
   const res = await p;
   assert.equal(res.ok, true);
-  assert.equal(res.needsVerification, false);
-  assert.ok(res.session);
+  assert.ok(res.session, 'a session is returned (signed in immediately)');
 });
 
 test('signUp maps "already registered" to a friendly message', async () => {
@@ -93,14 +80,8 @@ test('logIn succeeds and maps invalid credentials / unconfirmed email', async ()
   p = a.logIn({ email: 'z@test.com', password: 'bad' });
   await tick();
   m.settle('signInWithPassword', { data: null, error: { message: 'Invalid login credentials' } });
-  let r = await p;
+  const r = await p;
   assert.equal(r.ok, false); assert.match(r.message, /incorrect/i);
-  // email not confirmed
-  p = a.logIn({ email: 'z@test.com', password: 'pw' });
-  await tick();
-  m.settle('signInWithPassword', { data: null, error: { message: 'Email not confirmed' } });
-  r = await p;
-  assert.equal(r.ok, false); assert.match(r.message, /verify your email/i);
 });
 
 test('resetPassword emails a reset link with redirect; updatePassword sets a new one', async () => {
@@ -141,25 +122,18 @@ function makeController(overrides = {}) {
   return { ctl, state, d, toasts, signedIn: () => signedIn };
 }
 
-test('register: needs-verification routes to login; session signs in', async () => {
-  // needs verification
-  let h = makeController();
-  let p = h.ctl.register({ name: 'Z', email: 'z@test.com', password: 'secretpw' });
+test('register: a successful sign-up signs the user in immediately (no verification step)', async () => {
+  const h = makeController();
+  const p = h.ctl.register({ name: 'Z', email: 'z@test.com', password: 'secretpw' });
   await tick();
   assert.equal(h.state.authBusy, true);
-  h.d.signUp[0].resolve({ ok: true, session: null, needsVerification: true });
-  await p;
-  assert.equal(h.state.authBusy, false);
-  assert.equal(h.state.authStage, 'login');
-  assert.ok(h.toasts.some(t => /check your email to verify/i.test(t)));
-  // immediate session
-  h = makeController();
-  p = h.ctl.register({ name: 'Z', email: 'z@test.com', password: 'secretpw' });
-  await tick();
   h.d.signUp[0].resolve({ ok: true, session: { access_token: 'x' } });
   await p;
-  assert.equal(h.state.authOpen, false);
+  assert.equal(h.state.authBusy, false);
+  assert.equal(h.state.authOpen, false, 'dialog closes — user is signed in right away');
   assert.equal(h.signedIn(), 1);
+  assert.ok(h.toasts.some(t => /welcome/i.test(t)));
+  assert.ok(!h.toasts.some(t => /verify|confirm/i.test(t)), 'no verification/confirmation prompt');
 });
 
 test('login: success closes the dialog, clears email/name; failure shows message', async () => {

@@ -28,8 +28,6 @@
       return 'That email already has an account — log in instead.';
     if (low.includes('invalid login') || low.includes('invalid credentials'))
       return 'Email or password is incorrect.';
-    if (low.includes('email not confirmed') || low.includes('not confirmed') || low.includes('confirm your email'))
-      return 'Please verify your email first — check your inbox for the confirmation link.';
     if (low.includes('password') && (low.includes('should be') || low.includes('at least') || low.includes('weak') || low.includes('6 characters')))
       return 'Choose a stronger password (at least 6 characters).';
     if (low.includes('email')) return 'Please enter a valid email address.';
@@ -42,19 +40,20 @@
     const notConfigured = { ok: false, error: { message: 'Cloud is not configured' }, message: 'Cloud is not configured' };
     const redirect = () => (getRedirectTo ? getRedirectTo() : undefined);
 
-    // Create an account. With email-confirmation ON, Supabase returns a user but NO
-    // session (needsVerification). With it OFF, a session is returned (signed in).
+    // Create an account. Email confirmation is OFF (owner decision), so Supabase
+    // returns a session and the user is signed in immediately. The display name is
+    // stored in Supabase Auth user_metadata (and mirrored to profiles) — never a
+    // password in app state or the app DB.
     async function signUp({ email, password, name }) {
       if (!state.supabase) return notConfigured;
       try {
         const { data, error } = await state.supabase.auth.signUp({
           email: String(email || '').trim(),
           password: String(password || ''),
-          options: { emailRedirectTo: redirect(), data: { display_name: name } },
+          options: { data: { display_name: name } },
         });
         if (error) return { ok: false, error, message: friendlyError(error) };
-        const session = (data && data.session) || null;
-        return { ok: true, session, needsVerification: !session && !!(data && data.user), error: null, message: '' };
+        return { ok: true, session: (data && data.session) || null, error: null, message: '' };
       } catch (err) { return { ok: false, error: err, message: friendlyError(err) }; }
     }
 
@@ -124,8 +123,9 @@
       const res = await run(() => ops.signUp({ name, email, password }));
       if (res.superseded) return res;
       if (res.ok) {
-        if (res.session) { state.authOpen = false; render(); if (onSignedIn) onSignedIn(); say('Welcome to WahalaVerse 🎉'); }
-        else { state.authStage = 'login'; render(); focus(); say('Account created — check your email to verify, then log in.'); }
+        // No email verification: sign-up returns a session and the user is signed in
+        // immediately. onAuthStateChange sets the user + loads the profile.
+        state.authOpen = false; render(); if (onSignedIn) onSignedIn(); say('Welcome to WahalaVerse 🎉');
       } else { render(); say(res.message || 'Could not create your account'); }
       return res;
     }

@@ -6,7 +6,7 @@ A working, lightweight entertainment website for Nigerian young adults. Includes
 - **Survive Naija**: a four-round salary-and-life-decisions mini-game, with financial, peace-of-mind and street-cred stats.
 - **My corner**: recent activities, account state and cloud-saved challenges.
 - **Guest mode**: runs with no backend, stores recent activity on that device via `localStorage`, and shares challenges as URL-encoded data.
-- **Optional real accounts**: Supabase Auth email + password sign-up/sign-in (with email verification + password reset); Supabase PostgreSQL for profile, challenge and activity storage.
+- **Optional real accounts**: Supabase Auth email + password sign-up/sign-in (no OTP/email verification; sign-up signs in immediately; password reset on request); Supabase PostgreSQL for profile, challenge and activity storage.
 
 The website is a functional starter, **not a deployed live service**. Authentication and cross-device storage work once you configure Supabase. The privacy page and certain operations are intentionally marked pre-launch until an operator completes them.
 
@@ -33,7 +33,7 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 76 tests: core/account/auth/challenges/delete-account (mocked backend)
+npm run test:unit            # -> 75 tests: core/account/auth/challenges/delete-account (mocked backend)
 npm run test:rls             # -> two-account RLS probes; SKIPS unless TEST-project env vars are set
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
@@ -53,7 +53,7 @@ deferred-promise Supabase client: delayed profile responses, account switching, 
 refreshes, and cross-session guest data, plus the email+password auth flow (sign-up, login,
 password reset, error mapping) via a mocked auth client, plus auth
 state-hygiene (stale-response invalidation), and secure profile update. Last run
-(2026-10-28): **76/76 unit, 22/22 E2E passing (98 total)**; the RLS integration
+(2026-10-28): **75/75 unit, 22/22 E2E passing (97 total)**; the RLS integration
 suite is prepared and skips without a TEST project.
 CI (GitHub Actions) runs both suites on every push/PR.
 
@@ -78,7 +78,7 @@ See `STATUS.md` and `REVIEW_NOTES.md`.
 4. Edit `config.js` to set `supabaseUrl` and `supabasePublishableKey`.
 5. In **Authentication → URL Configuration**, set the app's production Site URL, and explicitly allow any development callback URL you need (e.g., `http://localhost:8080/**`).
 6. Configure and test email deliverability with a proper SMTP sender before a public launch; default trial email limits are not sufficient for large-scale acquisition.
-7. Deploy all static files together. The sign-in modal now does real email+password sign-up/sign-in (with verification + reset), and signed-in users have cloud-saved challenges and game history.
+7. Deploy all static files together. The sign-in modal now does real email+password sign-up/sign-in (no OTP/verification; password reset on request), and signed-in users have cloud-saved challenges and game history.
 
 **Safety:** Only the Supabase public URL and publishable/anon key belong in a browser config file. **NEVER** add a `service_role`, secret API key, SMTP password, or other server-side credential to this site. Row-level security and scoped SQL grants protect cloud rows. Get them reviewed/tested before launch.
 

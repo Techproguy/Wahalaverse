@@ -58,14 +58,14 @@ production Vercel deployment stays guest-only until the owner explicitly approve
 ## 3. Two-account auth + seeded RLS verification (prep)
 **Goal:** obtain A's and B's access tokens (JWTs) + user ids, then run the seeded RLS suite.
 
-**Auth/config needed first (see §5):** Site URL + redirect allowlist + (for OTP) the email template.
+**Auth/config needed first (see §5):** Supabase **Confirm Email = OFF** (owner, TEST only) + Site URL +
+redirect allowlist (the redirect is only used by the password-reset link).
 
-**Getting JWTs — two options:**
-- **Option A (OTP, matches production flow):** run the app locally (TEST config), sign in A with its
-  mailbox (magic link or 6-digit code), then read the session access token from the browser
-  (`localStorage` Supabase session, or `await supabase.auth.getSession()` in the console). Repeat for B.
-- **Option B (password test users, fastest for JWTs):** in the dashboard **Auth → Users → Add user**,
-  create A and B with passwords, then mint tokens locally (RLS doesn't care how the JWT was issued):
+**Getting JWTs (email + password):** create A and B as **password** users, then mint tokens locally
+(RLS doesn't care how the JWT was issued):
+- Easiest: in the dashboard **Auth → Users → Add user** (set a password), **or** register through the
+  app (email + password → signed in immediately since Confirm Email is off).
+- Then:
   ```js
   // node --input-type=module  (after: npm i --no-save @supabase/supabase-js)
   import { createClient } from '@supabase/supabase-js';
@@ -73,6 +73,9 @@ production Vercel deployment stays guest-only until the owner explicitly approve
   const { data } = await s.auth.signInWithPassword({ email: 'a@test...', password: '...' });
   console.log(data.session.access_token, data.user.id);
   ```
+- ⚠️ The **previously used disposable email** from the passwordless attempts likely has **no password**
+  — inspect it (Auth → Users) before reuse; set a password via "Forgot password?"/Add user, or use a
+  fresh approved account. Do not create extra accounts without approval.
 
 **Run the seeded two-account RLS suite:**
 ```bash
@@ -93,6 +96,8 @@ table can't fake a pass.
 Run the app locally against the TEST project (`python3 -m http.server 8080`). Use A and B in separate
 browsers/profiles.
 
+- **Register + login (email + password):** create account A (name + email + password) → **signed in
+  immediately** (no verification prompt); sign out; **log back in** with the same email + password.
 - **Challenge sharing (cloud):** A (signed in) creates a challenge → gets a `?c=<id>` link. Open the
   link as **anon** (logged-out, fresh profile) → it loads and plays via the `get_challenge` RPC.
 - **Guest link still works:** create a guest challenge (or open an existing `?guest=` link) → plays
@@ -107,14 +112,15 @@ browsers/profiles.
 
 ---
 
-## 5. SITE_URL, redirect URLs, email OTP template  **[OWNER APPROVAL for live-ish settings]**
-1. **Auth → URL Configuration:**
+## 5. Auth settings (email + password)  **[OWNER APPROVAL for TEST settings]**
+1. **Auth → Providers → Email:** **turn OFF "Confirm email"** (TEST project only) so registration
+   signs the user in immediately. **Do not change production auth settings.** No OTP/magic-link.
+2. **Auth → URL Configuration:**
    - **Site URL:** the app origin used for testing (e.g. `http://localhost:8080` for local, or the
      TEST deployment origin if you stage one — NOT the production Vercel URL unless deliberately testing).
    - **Redirect URLs (allowlist):** add every origin you'll test from, e.g. `http://localhost:8080/**`.
-     Magic-link return (`emailRedirectTo`) must match an allowlisted entry.
-2. **Auth → Email Templates → Magic Link:** include the token so the **6-digit OTP** is delivered
-   alongside the link (e.g. add `{{ .Token }}` to the template) — required for the OTP fallback.
+     Only the **password-reset** link uses this redirect (reset is the one place an email is sent, and
+     only when the user requests it).
 3. **Edge Function env (only when deploying `delete-account`) [OWNER APPROVAL]:**
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are **reserved vars injected
    automatically** by Supabase — **do NOT set them manually**. Only set **`SITE_URL`** = the exact
@@ -136,8 +142,8 @@ browsers/profiles.
 | T5 | No enumeration | (in T2) | anon table SELECT empty/denied; A sees only own | anon lists rows, or A sees B's |
 | T6 | By-id retrieval | (in T2) | `get_challenge(B's id)` returns 1 row, **no owner_id**, for anon & A; unknown id → none | returns owner_id, or returns nothing for a valid id, or lists many |
 | T7 | Cross-account writes | (in T2) | A can't insert owner_id=B; can't delete B's challenge | either succeeds |
-| T8 | Magic link + OTP | Sign in A via link AND via 6-digit code | Both establish a session; session persists on reload | Either fails; code not delivered |
-| T9 | Redirect/mobile return | Open magic link on phone / new tab | Returns to app signed in | Lands unauthenticated / error |
+| T8 | Register + login (email+password) | Create account, then log in | Register signs in immediately (no verification); login works; session persists on reload | Verification prompt appears; login fails; session lost on reload |
+| T9 | Password reset (on request) | "Forgot password?" → email link → set new password → log in | Reset email sent; new password works | Reset email not sent; new password rejected |
 | T10 | Cloud challenge share | A creates `?c=` → open as anon | Loads + plays via RPC | "couldn't load" / enumeration |
 | T11 | Guest link | Open `?guest=` | Loads + plays, no account | Broken |
 | T12 | Data export | A → Download my data | JSON = A's own data only; complete (all pages) | Missing/extra data; partial on error |
@@ -156,7 +162,7 @@ browsers/profiles.
 2. **Run `supabase-schema.sql`** (and any migration) on the TEST project.
 3. **Deploy** the `delete-account` Edge Function + set its `SUPABASE_SERVICE_ROLE_KEY` and `SITE_URL`
    secrets (needed for T13/T14).
-4. Configure **Site URL / redirect allowlist / email OTP template** on the TEST project.
+4. **Disable Confirm Email** + configure **Site URL / redirect allowlist** on the TEST project (no OTP/magic-link template needed).
 5. Provide/confirm the **two test identities** (and the TEST anon key for local wiring).
 6. Any decision to **stage a separate TEST deployment** (still not the production Vercel, which stays
    guest-only).
@@ -179,7 +185,7 @@ browsers/profiles.
 - **Run account-deletion tests LAST.** Deletion (T13/T14) destroys accounts A/B and their data, so run
   it only **after** every test that depends on those accounts (T2–T12). Re-seed / recreate the test
   accounts before any subsequent run.
-- **Physical mobile testing needs a protected HTTPS origin.** Magic links, the OTP return, and
+- **Physical mobile testing needs a protected HTTPS origin.** The password-reset link return and
   `navigator.share`/WhatsApp hand-off require **HTTPS** on a real device (desktop `http://localhost`
   is exempt, phones are not). Use a dedicated **HTTPS TEST staging** origin (e.g. a separate TEST
   Vercel/Netlify preview, or an HTTPS tunnel) — **not** the production WahalaVerse deployment. Add that

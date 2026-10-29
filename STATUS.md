@@ -44,8 +44,8 @@ reading and exercising the code, not by assuming placeholders are complete.
   and `SECURITY_REVIEW_PHASE_C.md`. **Not applied to any live project** (TEST-only, needs approval).
 
 ## Tests
-- **76 unit** (`npm run test:unit`, node --test — core/account/auth/challenges/delete-account) + **22 E2E**
-  (`npm run test:e2e`, Playwright Desktop Chrome + Pixel 7) = **98 passing, 0 failing** on the final commit.
+- **75 unit** (`npm run test:unit`, node --test — core/account/auth/challenges/delete-account) + **22 E2E**
+  (`npm run test:e2e`, Playwright Desktop Chrome + Pixel 7) = **97 passing, 0 failing** on the final commit.
 - The 9 `account` tests are deterministic: they drive `account.js` with a mocked Supabase client
   using test-controlled deferred promises (delayed profile, account switch, sign-out, failed refresh,
   cross-session guest data).
@@ -59,10 +59,16 @@ reading and exercising the code, not by assuming placeholders are complete.
   session (`sessionStorage`), so another session's / person's guest history is never auto-synced.
 
 ## Milestone 2 progress
-- **Auth method changed (2026-10-29):** switched from OTP/magic-link to **email + password**
-  (sign-up, login, password reset/recovery); guest-first preserved; passwords only in Supabase Auth.
+- **Auth method FINALIZED (2026-10-29):** **email + password, NO OTP / magic-link / email
+  verification.** Registration (email + password + display name) **signs the user in immediately**;
+  login is email + password; password recovery via a reset email **only when requested**. Owner
+  disables Supabase **Confirm Email** on Lava TEST (production auth settings unchanged). Guest-first
+  preserved; passwords handled only by Supabase Auth (never in state/logs/`public.profiles`); RLS +
+  account-ownership protections intact.
+- **On resume:** inspect the existing disposable TEST account before reuse — its earlier passwordless
+  attempts did **not** set a password; use "Forgot password?" or a fresh (approved) account.
 - **Status snapshot (2026-10-29):**
-  - Automated tests: **76 unit + 22 E2E passing**.
+  - Automated tests: **75 unit + 22 E2E passing**.
   - Live email/password login on Lava: **BLOCKED** by Supabase built-in email-sending **rate limit**
     (paused by owner; revisit after the quota resets). Do **not** assume the existing disposable
     account has a password or is confirmed — must be checked on resume.
