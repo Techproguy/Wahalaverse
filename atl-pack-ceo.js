@@ -20,12 +20,12 @@
 })(typeof self !== 'undefined' ? self : this, function (S) {
   'use strict';
 
-  const BOARD_SEATS = 5, BOARD_MAJORITY = 3;
-  // Removed if the activists hold a controlling bloc with low confidence, or confidence collapses.
-  // Ousted when a strong activist bloc meets weak confidence (they swing the
-  // independents), or when confidence collapses outright.
+  // Removal follows an explicit board VOTE (atl-systems.boardRemovalVote): each director
+  // votes to remove when confidence is below their tolerance, and a seat majority ousts the
+  // CEO. Activists are quickest to vote you out, so an activist-heavy board ousts at higher
+  // confidence than an allied one — a valid, legible governance rule rather than a heuristic.
   const isRemoved = (c) => !c.flags.sold && !c.flags.resigned &&
-    ((c.run.custom.board.activist >= 2 && c.vars.boardConfidence < 42) || c.vars.boardConfidence < 28);
+    S.boardRemovalVote(c.run.custom.board, c.vars.boardConfidence).removed;
 
   return {
     id: 'ceo-life',

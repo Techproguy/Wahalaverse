@@ -56,15 +56,21 @@
     return cap;
   }
 
-  // Full exit WATERFALL with NON-PARTICIPATING liquidation preferences. Returns a
-  // { holderId: proceeds } map whose values sum to exitValue (proceeds are conserved).
-  //  - If the exit can't cover the preference stack, preferred holders share the whole
-  //    exit pro-rata by their preference claim; common holders get nothing.
-  //  - Otherwise each preferred holder ELECTS the better of its preference
-  //    (prefMult × invested) or CONVERTING to common; non-converters take their pref,
-  //    and the remainder is split among common + converters by shares.
-  // This is the mechanic by which a 3× down-round can leave a founder with ~nothing on
-  // a real exit, while a big exit makes preferred holders convert and share the upside.
+  // Full exit WATERFALL honouring liquidation-preference TERMS: claim seniority,
+  // conversion election, and participation. Returns a { holderId: proceeds } map whose
+  // values sum to exitValue (proceeds conserved). Holder fields used:
+  //   prefMult (0 = common), invested, seniority (higher = paid first; default 1),
+  //   participating (bool; takes pref AND shares the common pool), prefCap (×invested
+  //   total cap for a participating holder; optional).
+  // Rules:
+  //  1) A NON-participating preferred holder ELECTS to convert to common if its
+  //     as-converted share of the whole exit beats its preference (claim = prefMult×invested).
+  //  2) Remaining (non-converted) preferences are paid by SENIORITY tier, senior first;
+  //     if a tier is underwater, that tier shares what's left pro-rata by claim and juniors
+  //     + common get nothing.
+  //  3) Whatever remains splits among the COMMON POOL (common + converters + PARTICIPATING
+  //     preferred) by shares. Participating holders thus take pref AND participate; a
+  //     prefCap clamps their total and redistributes the excess.
   function capExitWaterfall(cap, exitValue) {
     const out = {};
     cap.holders.forEach(h => { out[h.id] = 0; });
@@ -72,25 +78,61 @@
     const total = capTotal(cap);
     const isPref = h => h.prefMult > 0 && h.invested > 0;
     const claim = h => h.prefMult * h.invested;
-    const prefHolders = cap.holders.filter(isPref);
-    const stack = prefHolders.reduce((t, h) => t + claim(h), 0);
 
-    if (exitValue <= stack) {                           // preference stack underwater
-      for (const h of prefHolders) out[h.id] = stack > 0 ? claim(h) / stack * exitValue : 0;
-      return out;                                       // common gets 0
-    }
-    // Conversion election: convert if as-converted share of the whole exit beats the pref.
+    // 1) conversion election (non-participating only)
     const converter = new Set();
-    for (const h of prefHolders) {
-      if ((h.shares / total) * exitValue > claim(h)) converter.add(h.id);
+    for (const h of cap.holders) {
+      if (isPref(h) && !h.participating && (h.shares / total) * exitValue > claim(h)) converter.add(h.id);
     }
-    let taken = 0;
-    for (const h of prefHolders) if (!converter.has(h.id)) { out[h.id] = claim(h); taken += claim(h); }
-    const remaining = exitValue - taken;
-    const pool = cap.holders.filter(h => !isPref(h) || converter.has(h.id)); // common + converters
-    const poolShares = pool.reduce((t, h) => t + h.shares, 0);
-    for (const h of pool) out[h.id] += poolShares > 0 ? (h.shares / poolShares) * remaining : 0;
+    // 2) pay preferences by seniority (descending); converted holders skip the stack
+    const payHolders = cap.holders.filter(h => isPref(h) && !converter.has(h.id));
+    const tiers = [...new Set(payHolders.map(h => h.seniority || 1))].sort((a, b) => b - a);
+    let remaining = exitValue;
+    for (const tier of tiers) {
+      if (remaining <= 0) break;
+      const group = payHolders.filter(h => (h.seniority || 1) === tier);
+      const groupClaim = group.reduce((t, h) => t + claim(h), 0);
+      if (remaining < groupClaim) {                    // tier underwater -> pro-rata, stop
+        for (const h of group) out[h.id] += claim(h) / groupClaim * remaining;
+        remaining = 0; break;
+      }
+      for (const h of group) out[h.id] += claim(h);
+      remaining -= groupClaim;
+    }
+    // 3) common pool = common + converters + participating preferred, by shares
+    if (remaining > 0) {
+      const pool = cap.holders.filter(h => !isPref(h) || converter.has(h.id) || h.participating);
+      const distribute = (amount, members) => {
+        const sh = members.reduce((t, h) => t + h.shares, 0);
+        for (const h of members) out[h.id] += sh > 0 ? (h.shares / sh) * amount : 0;
+      };
+      distribute(remaining, pool);
+      // 4) participation cap: clamp participating holders, redistribute excess once
+      let excess = 0; const uncapped = [];
+      for (const h of pool) {
+        if (h.participating && h.prefCap > 0) {
+          const capAmt = h.prefCap * h.invested;
+          if (out[h.id] > capAmt) { excess += out[h.id] - capAmt; out[h.id] = capAmt; }
+          else uncapped.push(h);
+        } else uncapped.push(h);
+      }
+      if (excess > 0 && uncapped.length) distribute(excess, uncapped);
+    }
     return out;
+  }
+
+  // Board removal vote (explicit governance rule). Each director votes to REMOVE when
+  // confidence falls below their tolerance (activists are quickest to pull the trigger,
+  // allied directors the slowest). Removal needs a majority of the seats.
+  function boardRemovalVote(board, confidence, tol) {
+    const t = Object.assign({ friendly: 40, independent: 50, activist: 75 }, tol || {});
+    const seats = (board.friendly || 0) + (board.independent || 0) + (board.activist || 0);
+    let remove = 0;
+    if (confidence < t.friendly) remove += (board.friendly || 0);
+    if (confidence < t.independent) remove += (board.independent || 0);
+    if (confidence < t.activist) remove += (board.activist || 0);
+    const majority = Math.floor(seats / 2) + 1;
+    return { seats, remove, keep: seats - remove, majority, removed: remove >= majority };
   }
 
   // Convenience: integer proceeds for a single holder from the waterfall.
@@ -98,5 +140,5 @@
     return Math.max(0, Math.round(capExitWaterfall(cap, exitValue)[id] || 0));
   }
 
-  return { capFound, capTotal, capOwnership, capRaise, capPool, capExitWaterfall, capExitProceeds };
+  return { capFound, capTotal, capOwnership, capRaise, capPool, capExitWaterfall, capExitProceeds, boardRemovalVote };
 });
