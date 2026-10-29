@@ -4,6 +4,7 @@ A working, lightweight entertainment website for Nigerian young adults. Includes
 
 - **Predict My Wahala**: seven funny questions, answer-key creation, shareable friend challenge link, scoring and a replay/share loop.
 - **Survive Naija**: a four-round salary-and-life-decisions mini-game, with financial, peace-of-mind and street-cred stats.
+- **Assume Their Life** (engine spike): a causal life-simulation — assume a fictional rising Nigerian Afrobeats artist and play a "Breakout Year". Six interacting meters (cash, buzz, fans, credibility, energy, control), stakeholder memory, time progression, delayed consequences that trace back to earlier choices, and an explainable end-of-year Reckoning. A role-agnostic engine (`atl-engine.js`) driven by a role pack (`atl-pack-afrobeats.js`); more role packs are roadmapped. **Not** a quiz — decisions are actions with trade-offs, not questions with a correct answer.
 - **My corner**: recent activities, account state and cloud-saved challenges.
 - **Guest mode**: runs with no backend, stores recent activity on that device via `localStorage`, and shares challenges as URL-encoded data.
 - **Optional real accounts**: Supabase Auth email magic links with display name and verified email; Supabase PostgreSQL for profile, challenge and activity storage.
@@ -33,10 +34,10 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 28 tests: core logic + account state machine (mocked backend)
+npm run test:unit            # -> 41 tests: core logic + account state machine + Assume Their Life engine
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
-npm run test:e2e             # -> 22 checks across Desktop Chrome + Pixel 7 viewports
+npm run test:e2e             # -> 26 checks across Desktop Chrome + Pixel 7 viewports
 
 # Everything
 npm test
@@ -49,7 +50,10 @@ validation (short name, unanswered questions); malformed guest links and cloud (
 links with no backend; phone viewport (bottom nav shows, no horizontal overflow, auth
 dialog focus). The unit suite also covers the account state machine (`account.js`) with a mocked,
 deferred-promise Supabase client: delayed profile responses, account switching, sign-out, failed
-refreshes, and cross-session guest data. Last run (2026-10-28): **28/28 unit, 22/22 E2E passing (50 total).**
+refreshes, and cross-session guest data. The Assume Their Life suite covers deterministic state
+transitions, delayed consequences that fire later and trace back, commitment enforcement at the
+horizon, divergent outcomes from different early choices, player agency (declining paths), and the
+Reckoning explanation. Last run (2026-10-29): **41/41 unit, 26/26 E2E passing (67 total).**
 
 **Untested paths (require live Supabase — Milestone 2):** email magic-link sign-in,
 cloud challenge storage/retrieval, real activity upload/RLS, and profile creation.
