@@ -2,7 +2,8 @@
 
 A working, lightweight entertainment website for Nigerian young adults. Includes:
 
-- **Predict My Wahala**: seven funny questions, answer-key creation, shareable friend challenge link, scoring and a replay/share loop.
+- **Predict My Wahala** (Quick Challenge): seven preset questions, answer-key creation, shareable friend challenge link, scoring and a replay/share loop.
+- **Create Your Own Wahala**: author your own 3–10 questions with 2–4 options each, mark your intended answers, preview, then generate a shareable guest link (gzip-compressed, no account/backend). Friends guess your answers; result shows a Nigerian-flavoured friendship verdict. Existing Quick Challenge links stay compatible.
 - **Survive Naija**: a four-round salary-and-life-decisions mini-game, with financial, peace-of-mind and street-cred stats.
 - **My corner**: recent activities, account state and cloud-saved challenges.
 - **Guest mode**: runs with no backend, stores recent activity on that device via `localStorage`, and shares challenges as URL-encoded data.

@@ -54,37 +54,64 @@
   // --- Guest challenge link encoding ----------------------------------------
   // Answers are base64url-encoded into the URL. Observable to technical users —
   // suitable for casual fun, NOT for prizes/competitions.
-  const MAX_TOKEN = 3500; // keep guest links short enough to share (e.g. WhatsApp)
-  // Limits for "Create Your Own Wahala" (v2). Tunable; kept small so the whole
-  // custom challenge still fits in a shareable URL.
+  // Final share-token length cap. Compressed v2 links for realistic (even heavy,
+  // emoji-laden, 10-question) challenges measure a few hundred chars; this cap with
+  // a clear "edit it" path handles the rare overflow. Not a claim that every
+  // theoretical maximum fits.
+  const MAX_TOKEN = 4000;
+  const MAX_DECOMPRESSED = 16384; // anti zip-bomb guard on decode
+  // Limits for "Create Your Own Wahala" (v2).
   const CUSTOM_LIMITS = Object.freeze({
-    minQuestions: 3, maxQuestions: 7, minOptions: 2, maxOptions: 4,
+    minQuestions: 3, maxQuestions: 10, minOptions: 2, maxOptions: 4,
     questionLen: 120, optionLen: 60, nameLen: 30, titleLen: 80,
   });
 
-  function b64urlEncode(obj) {
-    const bytes = new TextEncoder().encode(JSON.stringify(obj));
-    return btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
+  const toB64url = (bytes) => btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const fromB64url = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+
+  function b64urlEncode(obj) { return toB64url(new TextEncoder().encode(JSON.stringify(obj))); }
   function b64urlDecode(token) {
     if (!token || token.length > MAX_TOKEN) throw new Error('Bad link');
-    const b64 = token.replace(/-/g, '+').replace(/_/g, '/');
-    const bin = atob(b64);
-    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes));
+    return JSON.parse(new TextDecoder().decode(fromB64url(token)));
   }
 
-  // v1 — Quick Challenge (the 7 preset questions). Unchanged format.
+  // gzip helpers (Web Streams — available in modern browsers and Node 18+).
+  async function gzip(bytes) {
+    const cs = new CompressionStream('gzip');
+    const w = cs.writable.getWriter(); w.write(bytes); w.close();
+    return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+  }
+  async function gunzip(bytes) {
+    const ds = new DecompressionStream('gzip');
+    const w = ds.writable.getWriter(); w.write(bytes); w.close();
+    return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+  }
+  const canCompress = typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
+
+  // v1 — Quick Challenge (the 7 preset questions). Unchanged, sync, byte-identical.
   function encodeChallenge(ch) {
     return b64urlEncode({ v: 1, n: ch.owner_name, t: ch.title, a: ch.answers });
   }
 
   // v2 — Create Your Own Wahala. Carries the author's own questions + options.
+  // Compressed (gzip) and prefixed with '~' so it's unambiguous vs the plain v1
+  // format; falls back to plain base64url if compression is unavailable. Throws
+  // Error('too-long') if the final token exceeds MAX_TOKEN — the builder catches
+  // this and asks the creator to trim (never silently drops questions/answers).
   // ch: { owner_name, title, questions:[{q, a:[options]}], answers:[intIndex] }
-  function encodeCustomChallenge(ch) {
+  async function encodeCustomChallenge(ch) {
     const q = (ch.questions || []).map(x => ({ q: x.q, o: x.a }));
-    return b64urlEncode({ v: 2, n: ch.owner_name, t: ch.title, a: ch.answers, q });
+    const json = new TextEncoder().encode(JSON.stringify({ v: 2, n: ch.owner_name, t: ch.title, a: ch.answers, q }));
+    let token;
+    if (canCompress) {
+      try { token = '~' + toB64url(await gzip(json)); }
+      catch { token = toB64url(json); }
+    } else {
+      token = toB64url(json);
+    }
+    if (token.length > MAX_TOKEN) { const err = new Error('too-long'); err.code = 'too-long'; err.length = token.length; throw err; }
+    return token;
   }
 
   // Pure validator for a custom challenge (used by the builder AND the decoder, so
@@ -112,9 +139,18 @@
     return { ok: true };
   }
 
-  // Decodes BOTH v1 (Quick) and v2 (Custom) guest links. Existing v1 links keep working.
-  function decodeChallenge(token) {
-    const ch = b64urlDecode(token);
+  // Decodes BOTH v1 (Quick, plain) and v2 (Custom, '~'-prefixed gzip OR plain)
+  // guest links. Async because v2 may need gunzip. Existing v1 links keep working.
+  async function decodeChallenge(token) {
+    if (!token || token.length > MAX_TOKEN) throw new Error('Bad link');
+    let ch;
+    if (token[0] === '~') {
+      const bytes = await gunzip(fromB64url(token.slice(1)));
+      if (bytes.length > MAX_DECOMPRESSED) throw new Error('Bad link'); // anti zip-bomb
+      ch = JSON.parse(new TextDecoder().decode(bytes));
+    } else {
+      ch = b64urlDecode(token);
+    }
     if (ch.v === 1) {
       if (typeof ch.n !== 'string' || ch.n.length > 35
         || typeof ch.t !== 'string' || ch.t.length > 80
