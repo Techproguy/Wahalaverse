@@ -23,11 +23,18 @@ the `?page=atl` experience.
 Run it: `npm run test:unit` (41 incl. 13 engine) and `npm run test:e2e` (26 incl. a full
 browser run to the Reckoning). Or serve the site and open **Explore → Assume Their Life**.
 
-## The engine is role-agnostic by design (so 4 role categories fit without a rewrite)
+## The engine is role-agnostic by design (so the core role experiences fit without a rewrite)
+
+> **Scope note (2026-10-29):** Afrobeats is **one additional role and a reusable technical
+> experiment** — not the flagship and not a gate. The **active core role experiences** are
+> **Billionaire, CEO, Founder and Political Leadership** (distinct lives: a CEO is not
+> necessarily the founder; a billionaire is not necessarily the CEO). They are active scope,
+> not contingent on Afrobeats acceptance. Full breakdown + engine reuse-vs-expansion
+> analysis is in `WahalaVerse-Assume-Their-Life-Vertical-Slice-Design-v0.1.md` §10–§11.
 
 `atl-engine.js` knows nothing about Afrobeats. All role-specific reality lives in a **role
-pack**. The pack contract is the extensibility seam for the roadmapped roles
-(Billionaire, CEO/Founder, Celebrity, Political):
+pack**. The pack contract is the extensibility seam for the core role experiences
+(Billionaire, CEO, Founder, Political — plus the Afrobeats experiment):
 
 - **`pack.vars`** — each role declares its **own** meters, ranges and formatting. A CEO
   pack can declare `runway`, `valuation`, `boardConfidence`, `marketShare`; a billionaire
@@ -50,5 +57,7 @@ Determinism is a hard invariant: no `Math.random`, no `Date`. A run is fully rep
 from its choice sequence (see the determinism test), which keeps outcomes debuggable and
 fair, and makes "same run" shareable later.
 
-See `WahalaVerse-Assume-Their-Life-Vertical-Slice-Design-v0.1.md` for the design and the
-**role-category roadmap** (the four core categories and their distinct systems).
+See `WahalaVerse-Assume-Their-Life-Vertical-Slice-Design-v0.1.md` §10–§11 for the active
+**core role scope**, the per-role implementation breakdown, and the engine reuse-vs-expansion
+analysis (shared `capTable` / `portfolio` / `budget` / `voteCount` helpers via
+`choice.ops` + `derive`).
