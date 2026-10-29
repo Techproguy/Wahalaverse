@@ -140,5 +140,22 @@
     return Math.max(0, Math.round(capExitWaterfall(cap, exitValue)[id] || 0));
   }
 
-  return { capFound, capTotal, capOwnership, capRaise, capPool, capExitWaterfall, capExitProceeds, boardRemovalVote };
+  // ---- Legislature (Political) ---------------------------------------------
+  // Whether a bill passes: your bloc votes yes; independents are won over in
+  // proportion to your `support` (coalition strength 0..100); the opposition votes no.
+  // Passing needs a seat majority — so an unpopular-with-the-aisle bill fails even if you
+  // want it, and passing is NOT the same as implementing it (see the packs' capacity roll).
+  function legislativeVote(leg, support) {
+    const gov = leg.gov || 0, opp = leg.opp || 0, ind = leg.ind || 0;
+    const total = gov + opp + ind;
+    const indYes = Math.round(ind * Math.max(0, Math.min(100, support)) / 100);
+    const yes = gov + indYes;
+    const majority = Math.floor(total / 2) + 1;
+    return { yes, no: total - yes, majority, passed: yes >= majority };
+  }
+
+  return {
+    capFound, capTotal, capOwnership, capRaise, capPool, capExitWaterfall, capExitProceeds, boardRemovalVote,
+    legislativeVote,
+  };
 });
