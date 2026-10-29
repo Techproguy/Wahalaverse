@@ -97,18 +97,28 @@ and the consent model before launch.
 ## 6. Who processes data for us (sub-processors)
 - **Authentication & database:** Supabase (email+password auth, profile/challenge/
   activity storage). Region: **[OWNER TO CONFIRM]**.
-- **Static hosting / CDN:** **[OWNER TO CONFIRM — e.g. Vercel]**. Region/edge: **[OWNER TO CONFIRM]**.
+- **Static hosting / CDN:** **Vercel** (current preview). Edge region observed in testing:
+  **`fra1` = Frankfurt, Germany (EU)** — **[OWNER TO CONFIRM the production region/plan]**.
 - Fonts are **self-hosted** on our own origin; the site makes no Google Fonts request.
 
 ## 7. International transfers
-- **[OWNER TO CONFIRM]** — If Supabase/hosting stores data outside Nigeria, state the
-  countries/regions and the lawful transfer basis under the NDPA.
+- ⚠️ **Discovered in testing (not yet a decision):** the Vercel edge served from **`fra1`
+  (Frankfurt, EU)**, and the Supabase project region is **[OWNER TO CONFIRM]** (not derivable
+  from the public project URL). If account data is stored/served **outside Nigeria**, this
+  section must state the countries/regions and the lawful cross-border transfer basis under
+  the NDPA before launch. The owner can pin both the Supabase region and a Vercel region.
 
 ## 8. Cookies & local storage
-- We use **browser `localStorage`** to remember your recent activity and (if signed in)
-  your session. We do **not** use advertising cookies.
-- Your authentication session token is stored by the auth provider's SDK in your browser
-  so you stay signed in.
+- We use **browser `localStorage`** on your own device. We do **not** use advertising
+  cookies. The keys we set are:
+  - `wv_activity` — your recent in-game activity (challenges/games/role-sim results).
+  - `wv_cc_draft` — an **autosaved draft** of a "Create Your Own Wahala" challenge you are
+    building, so it survives an accidental reload. Stored **only on your device**, never
+    sent to us; cleared when you generate the challenge, start fresh, or clear browser data.
+  - `wv_pending_name` — a display name you entered, kept briefly to complete sign-in.
+  - a per-tab session id (`sessionStorage`) used to keep guest activity on this device only.
+- If you sign in, your authentication session token is stored by the auth provider's SDK
+  in your browser so you stay signed in.
 - **[OWNER TO CONFIRM]** — update if analytics/cookies are introduced.
 
 ## 9. Your rights (NDPA data-subject rights)
