@@ -13,12 +13,30 @@
 
 ---
 
-## 0. Facts the owner must supply before publishing
+## 0. Operator facts — confirmed vs still outstanding
+
+**Confirmed by the owner (2026-10-29):**
+
+| Item | Value |
+|------|-------|
+| Sole proprietor | **Mercy Moyinoluwa Adepoju** |
+| Registered business name | **Technoestro Solutions** |
+| Product brand | **WahalaVerse** |
+| Country | **Nigeria** |
+| Planned domain | **wahalaverse.com** — ⚠️ *not yet purchased* |
+| Planned privacy email | **privacy@wahalaverse.com** — ⚠️ *not yet active* |
+
+> ⚠️ **Do not publish with inactive contact details.** The domain and email above are
+> *planned*. This policy must **not** go live until `wahalaverse.com` is registered and
+> `privacy@wahalaverse.com` is active and monitored — otherwise it would advertise a
+> contact route that cannot receive data-subject requests.
+
+**Still outstanding before publishing:**
 
 | # | Item | Needed for section | Status |
 |---|------|--------------------|--------|
-| 1 | Legal operator identity (individual/company name, RC number if any) | §1, §11 | **[OWNER TO CONFIRM]** |
-| 2 | Privacy/support contact (email, and postal address if a company) | §1, §9, §11 | **[OWNER TO CONFIRM]** |
+| 1 | Privacy email activation (`privacy@wahalaverse.com` live & monitored) | §1, §9, §11 | **[PLANNED — NOT YET ACTIVE]** |
+| 2 | Domain registration (`wahalaverse.com`) | header, §1 | **[PLANNED — NOT YET PURCHASED]** |
 | 3 | Whether a Data Protection Officer / contact is designated | §11 | **[OWNER TO CONFIRM]** |
 | 4 | Hosting region(s) for Supabase project and static host | §6, §7 | **[OWNER TO CONFIRM]** |
 | 5 | Data retention periods (accounts, challenges, activities, auth logs) | §5 | **[OWNER TO CONFIRM]** |
@@ -30,9 +48,11 @@
 ---
 
 ## 1. Who we are
-- Operator: **[OWNER TO CONFIRM — legal name]**
-- Contact for privacy questions: **[OWNER TO CONFIRM — email / address]**
-- This policy covers the WahalaVerse website and its games.
+- Operator: **Mercy Moyinoluwa Adepoju**, sole proprietor, trading as **Technoestro
+  Solutions** (Nigeria).
+- Product: **WahalaVerse** (this website and its games).
+- Contact for privacy questions: **privacy@wahalaverse.com** — ⚠️ *planned; must be
+  active before this policy is published*.
 
 ## 2. What the service does (plain description)
 WahalaVerse is an entertainment website. You can **play as a guest with no account**.
@@ -98,8 +118,8 @@ processing.
 - **Self-service today:** signed-in users can **export** and **delete** their account
   data from within the app (account deletion runs server-side via a secure function;
   no admin credentials are shipped to the browser).
-- **Contact route:** **[OWNER TO CONFIRM — email]** for any request the app cannot
-  self-serve.
+- **Contact route:** **privacy@wahalaverse.com** (⚠️ *planned; must be active before
+  publication*) for any request the app cannot self-serve.
 - You may also complain to the Nigeria Data Protection Commission.
 
 ## 10. Security
@@ -109,7 +129,10 @@ processing.
 - No system is perfectly secure; we cannot guarantee absolute security.
 
 ## 11. Contact & changes
-- Questions: **[OWNER TO CONFIRM — contact]**.
+- Operator: **Mercy Moyinoluwa Adepoju** (Technoestro Solutions), Nigeria.
+- Questions: **privacy@wahalaverse.com** (⚠️ *planned; must be active before
+  publication*).
+- A Data Protection Officer / designated contact is **[OWNER TO CONFIRM]**.
 - We may update this policy; the **effective date** will appear at the top
   (**[OWNER TO CONFIRM]**).
 

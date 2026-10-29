@@ -5,7 +5,10 @@
 > invents an operator, jurisdiction, or contact.
 
 **Effective date:** [OWNER TO CONFIRM]
-**Operator:** [OWNER TO CONFIRM — legal name & contact]
+**Operator:** Mercy Moyinoluwa Adepoju, sole proprietor, trading as **Technoestro
+Solutions** (Nigeria). Product brand: **WahalaVerse**.
+**Contact:** privacy@wahalaverse.com — ⚠️ *planned; not yet active. Do not publish these
+Terms until the email is live.*
 
 ## 1. Acceptance
 By using WahalaVerse (the "Service"), you agree to these Terms. If you do not agree,
@@ -64,8 +67,9 @@ You may stop using the Service and delete your account at any time (see the app'
 account controls). We may suspend access for breach of these Terms.
 
 ## 12. Governing law & contact
-- Governing law / jurisdiction: **[OWNER TO CONFIRM]**.
-- Contact: **[OWNER TO CONFIRM — email]**.
+- Operator: **Mercy Moyinoluwa Adepoju** (Technoestro Solutions), Nigeria.
+- Governing law / jurisdiction: **[OWNER TO CONFIRM]** (expected Nigeria — confirm).
+- Contact: **privacy@wahalaverse.com** (⚠️ *planned; must be active before publication*).
 
 ---
 
