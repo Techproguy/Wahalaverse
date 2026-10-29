@@ -97,3 +97,44 @@ test('edge cases: zero exit pays nobody; a no-pref table splits purely by shares
   const w = S.capExitWaterfall(cap, 1000000000);
   assert.ok(Math.abs(w.founder - 700000000) < 1 && Math.abs(w.cofounder - 300000000) < 1);
 });
+
+test('liq-pref SENIORITY: a senior tier is paid before a junior tier (and before common)', () => {
+  const cap = S.capFound([{ id: 'founder', shares: 1000000 }]);
+  // seniority 2 = most senior, paid first.
+  cap.holders.push({ id: 'seriesB', shares: 300000, invested: 300000000, prefMult: 1, seniority: 2 });
+  cap.holders.push({ id: 'seriesA', shares: 300000, invested: 300000000, prefMult: 1, seniority: 1 });
+  const w = S.capExitWaterfall(cap, 400000000); // only covers senior (300m) + 100m into junior
+  assert.ok(Math.abs(w.seriesB - 300000000) < 1, 'senior paid in full first');
+  assert.ok(Math.abs(w.seriesA - 100000000) < 1, 'junior gets what is left');
+  assert.equal(Math.round(w.founder), 0, 'common gets nothing');
+  assert.ok(Math.abs(sumWaterfall(w) - 400000000) < 1e-6);
+});
+
+test('liq-pref PARTICIPATION: a participating holder takes its pref AND shares the rest', () => {
+  const cap = S.capFound([{ id: 'founder', shares: 800000 }]);
+  cap.holders.push({ id: 'vc', shares: 200000, invested: 100000000, prefMult: 1, participating: true });
+  const w = S.capExitWaterfall(cap, 500000000);
+  // vc takes 100m pref, then 20% of the remaining 400m = 80m -> 180m total
+  assert.ok(Math.abs(w.vc - 180000000) < 1, 'pref + participation');
+  assert.ok(Math.abs(w.founder - 320000000) < 1, 'founder gets 80% of the remainder');
+  assert.ok(Math.abs(sumWaterfall(w) - 500000000) < 1e-6);
+});
+
+test('liq-pref PARTICIPATION CAP clamps the total and redistributes the excess', () => {
+  const cap = S.capFound([{ id: 'founder', shares: 800000 }]);
+  cap.holders.push({ id: 'vc', shares: 200000, invested: 100000000, prefMult: 1, participating: true, prefCap: 1.5 });
+  const w = S.capExitWaterfall(cap, 500000000);
+  assert.ok(w.vc <= 150000000 + 1, 'capped at 1.5x invested');
+  assert.ok(Math.abs(sumWaterfall(w) - 500000000) < 1e-6, 'excess redistributed, still conserved');
+});
+
+test('board removal VOTE: activist-controlled board ousts at a confidence a friendly board survives', () => {
+  const friendlyBoard = { friendly: 3, independent: 2, activist: 0 };
+  const activistBoard = { friendly: 1, independent: 1, activist: 3 };
+  assert.equal(S.boardRemovalVote(friendlyBoard, 55).removed, false); // allies hold at 55
+  assert.equal(S.boardRemovalVote(activistBoard, 55).removed, true);  // activists (tol 75) vote you out
+  assert.equal(S.boardRemovalVote(friendlyBoard, 20).removed, true);  // confidence collapse ousts anyone
+  // the vote is an explicit seat count reaching a majority
+  const v = S.boardRemovalVote(activistBoard, 55);
+  assert.ok(v.remove >= v.majority && v.seats === 5 && v.majority === 3);
+});
