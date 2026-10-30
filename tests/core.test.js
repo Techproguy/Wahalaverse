@@ -211,6 +211,24 @@ test('detectPerspective: flags first/second-person wording, clears on {name} or 
   assert.ok(d.words.includes('your') && d.words.includes('you'));
 });
 
+test('REGRESSION: {name} anywhere does NOT clear a remaining "you"; "Use my name" resolves it safely', () => {
+  // The founder's exact example: appending {name} but leaving "you" must stay flagged.
+  assert.equal(C.hasAmbiguousPerspective('What would you do with ₦500k? {name}'), true);
+  // creator-initiated safe replacement actually resolves the ambiguity
+  const r = C.resolveToName('What would you do with ₦500k?');
+  assert.equal(r, 'What would {name} do with ₦500k?');
+  assert.equal(C.hasAmbiguousPerspective(r), false);
+  assert.equal(C.fillName(r, 'Shege'), 'What would Shege do with ₦500k?'); // == Preview/recipient wording
+  // possessive + mixed {name}+you
+  assert.equal(C.resolveToName('Your crush — your move?'), "{name}'s crush — {name}'s move?");
+  assert.equal(C.resolveToName('{name} vs you'), '{name} vs {name}');
+  // subject "I" is NOT auto-rewritten (grammar safety) -> stays flagged for manual edit
+  assert.equal(C.resolveToName('Would I skip owambe?'), 'Would I skip owambe?');
+  assert.equal(C.hasAmbiguousPerspective('Would I skip owambe?'), true);
+  // whole-word only: never mangles substrings
+  assert.equal(C.resolveToName('message young'), 'message young');
+});
+
 test('all SEVEN Quick questions render naturally in both perspectives (no tokens, clean possessives)', () => {
   for (let i = 0; i < C.Q.length; i++) {
     const self = C.renderSubject(C.Q[i].q, 'Ada', 'self');

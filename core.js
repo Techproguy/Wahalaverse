@@ -87,14 +87,30 @@
     'i', "i'm", "i've", "i'd", "i'll", 'me', 'my', 'mine', 'myself', 'we', "we're", 'our', 'ours', 'us',
     'you', "you're", "you'd", "you'll", 'your', 'yours', 'yourself',
   ]);
+  // A question is ambiguous when first/second-person words REMAIN, regardless of whether
+  // {name} also appears — e.g. "What would you do? {name}" is still ambiguous (it still
+  // says "you"). {name} alone (with no pronouns) is clear.
   function detectPerspective(text) {
     const t = String(text == null ? '' : text);
     const hasName = /\{name\}/i.test(t);
     const toks = t.toLowerCase().replace(/’/g, "'").match(/[a-z']+/g) || [];
     const words = [...new Set(toks.filter(w => PERSPECTIVE_WORDS.has(w)))];
-    return { hasName, words, ambiguous: words.length > 0 && !hasName };
+    return { hasName, words, ambiguous: words.length > 0 };
   }
   const hasAmbiguousPerspective = (text) => detectPerspective(text).ambiguous;
+
+  // Creator-initiated, grammar-SAFE replacement of self-referring pronouns with the
+  // {name} placeholder (so recipients see the creator's name). Only maps words that stay
+  // grammatical when swapped for a name; leaves subject-"I"/plurals/contractions alone
+  // (those keep the warning for the creator to edit manually — we never risk mangling
+  // meaning). Whole-word only (never touches substrings like "young"/"message").
+  const NAME_MAP = { you: '{name}', your: "{name}'s", yours: "{name}'s", yourself: '{name}', my: "{name}'s", mine: "{name}'s", me: '{name}' };
+  function resolveToName(text) {
+    return String(text == null ? '' : text).replace(/[A-Za-z']+/g, (w) => {
+      const key = w.toLowerCase().replace(/’/g, "'");
+      return Object.prototype.hasOwnProperty.call(NAME_MAP, key) ? NAME_MAP[key] : w;
+    });
+  }
 
   // --- Guest challenge link encoding ----------------------------------------
   // Answers are base64url-encoded into the URL. Observable to technical users —
@@ -293,7 +309,7 @@
 
   return {
     Q, QUESTION_COUNT, DEMO, SCENES, SIM_START, CUSTOM_LIMITS, CC_DRAFT_VERSION,
-    escapeHtml, titleCase, formatNaira, renderSubject, fillName, detectPerspective, hasAmbiguousPerspective,
+    escapeHtml, titleCase, formatNaira, renderSubject, fillName, detectPerspective, hasAmbiguousPerspective, resolveToName,
     encodeChallenge, encodeCustomChallenge, decodeChallenge, validateCustomChallenge,
     isMeaningfulCustomDraft, sanitizeCustomDraft,
     scoreQuiz, applySimChoice, syncableActivities,
