@@ -10,14 +10,19 @@
   'use strict';
 
   // --- Content ---------------------------------------------------------------
+  // Built-in Quick Challenge questions are TEMPLATES with subject tokens so they can
+  // render from the right perspective: the CREATOR sees them about themselves ("you"),
+  // and a RECIPIENT predicting the creator sees them about the creator (their name).
+  // Tokens: {they}/{They} = subject (you / Name), {their}/{Their} = possessive (your / Name's).
+  // Options are the subject's own answers and are left as authored.
   const Q = [
-    {q:'You mistakenly receive ₦500,000. What are you most likely to do?', a:['Return the full money. Immediately. 😇','Keep ₦50k for emotional damages 😭','First confirm whether it is a miracle 👀']},
-    {q:'Your crush replies "lol" after your long message. Your next move?', a:['Type another paragraph. They must understand!','Act unbothered and disappear for 3 days','Send a meme and change the topic']},
-    {q:'You win ₦2 million unexpectedly. What gets the first money?', a:['Investment. My future self must eat.','Soft life, jollof and a flight ✈️','Family first. Everybody go chop.']},
-    {q:'A friend posts your very embarrassing throwback photo. What next?', a:['Beg politely for it to come down','Post something worse. War is war. 😭','Laugh and repost. Nobody can shame me.']},
-    {q:'The group chat is planning an outing. You?', a:['Organise everything. Somebody has to.','Say "I’m coming" and never appear','Ask how much it will cost first!']},
-    {q:'Someone says "we need to talk." You immediately think...', a:['What have I done now? 😭','Finally, some gossip!','Let me switch off my phone.']},
-    {q:'Pick your ideal Saturday in Nigeria.', a:['Staying home with a series and snacks','Outside! Anywhere with music and gist','Sleeping until Monday if possible']}
+    {q:'If {they} just received ₦500,000 by mistake, what would {they} most likely do?', a:['Return the full money. Immediately. 😇','Keep ₦50k for emotional damages 😭','First confirm whether it is a miracle 👀']},
+    {q:'{Their} crush replies "lol" after a long message. What is {their} next move?', a:['Type another paragraph. They must understand!','Act unbothered and disappear for 3 days','Send a meme and change the topic']},
+    {q:'{They} just won ₦2 million unexpectedly. What gets {their} first money?', a:['Investment. The future self must eat.','Soft life, jollof and a flight ✈️','Family first. Everybody go chop.']},
+    {q:'A friend posts {their} most embarrassing throwback photo. What would {they} do next?', a:['Beg politely for it to come down','Post something worse. War is war. 😭','Laugh and repost. Nobody can shame them.']},
+    {q:'The group chat is planning an outing. What is {their} move?', a:['Organise everything. Somebody has to.','Say "I’m coming" and never appear','Ask how much it will cost first!']},
+    {q:'Someone says "we need to talk." What is {their} first thought?', a:['What have I done now? 😭','Finally, some gossip!','Time to switch off the phone.']},
+    {q:'{Their} ideal Saturday in Nigeria?', a:['Staying home with a series and snacks','Outside! Anywhere with music and gist','Sleeping until Monday if possible']}
   ];
   const QUESTION_COUNT = Q.length;
 
@@ -50,6 +55,29 @@
   const titleCase = s => String(s || '').trim().slice(0, 30);
 
   const formatNaira = n => '₦' + Number(n).toLocaleString('en-NG');
+
+  // --- Challenge question perspective ---------------------------------------
+  // A friendship challenge asks a RECIPIENT to predict the CREATOR. Built-in questions
+  // are templates with subject tokens; render them for the right audience:
+  //   mode 'self'  → the creator (about themselves): "you" / "your"
+  //   mode 'other' → a recipient (about the creator): the creator's name / "Name's"
+  // Only these tokens are substituted — authored prose is never otherwise rewritten.
+  function renderSubject(tmpl, name, mode) {
+    const n = String(name == null ? '' : name).trim();
+    const self = mode === 'self';
+    const subj = self ? 'you' : n, Subj = self ? 'You' : n;
+    const poss = self ? 'your' : (n + "'s"), Poss = self ? 'Your' : (n + "'s");
+    return String(tmpl == null ? '' : tmpl)
+      .replace(/\{they\}/g, subj).replace(/\{They\}/g, Subj)
+      .replace(/\{their\}/g, poss).replace(/\{Their\}/g, Poss);
+  }
+
+  // For CREATOR-AUTHORED (custom) text: substitute ONLY an explicit {name} placeholder
+  // with the creator's display name. All other authored text is preserved verbatim
+  // (we never blindly rewrite "you"/"I"/"my" in user content).
+  function fillName(text, name) {
+    return String(text == null ? '' : text).replace(/\{name\}/gi, String(name == null ? '' : name).trim());
+  }
 
   // --- Guest challenge link encoding ----------------------------------------
   // Answers are base64url-encoded into the URL. Observable to technical users —
@@ -248,7 +276,7 @@
 
   return {
     Q, QUESTION_COUNT, DEMO, SCENES, SIM_START, CUSTOM_LIMITS, CC_DRAFT_VERSION,
-    escapeHtml, titleCase, formatNaira,
+    escapeHtml, titleCase, formatNaira, renderSubject, fillName,
     encodeChallenge, encodeCustomChallenge, decodeChallenge, validateCustomChallenge,
     isMeaningfulCustomDraft, sanitizeCustomDraft,
     scoreQuiz, applySimChoice, syncableActivities,

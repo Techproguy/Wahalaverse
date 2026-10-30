@@ -170,6 +170,46 @@ test('sanitizeCustomDraft clamps to the field limits (size + structure safety)',
   assert.ok(safe.questions[1].a.length >= L.minOptions);              // padded up to the minimum
 });
 
+// --- Challenge question perspective (recipient predicts the creator) ----------
+test('renderSubject: SELF mode addresses the creator as "you"/"your"', () => {
+  assert.equal(C.renderSubject(C.Q[0].q, 'Shege', 'self'),
+    'If you just received ₦500,000 by mistake, what would you most likely do?');
+  assert.equal(C.renderSubject(C.Q[6].q, 'Shege', 'self'), 'Your ideal Saturday in Nigeria?');
+});
+
+test('renderSubject: OTHER mode names the creator (matches the founder example)', () => {
+  assert.equal(C.renderSubject(C.Q[0].q, 'Shege', 'other'),
+    'If Shege just received ₦500,000 by mistake, what would Shege most likely do?');
+  // possessive + sentence-initial
+  assert.equal(C.renderSubject(C.Q[6].q, 'Ada', 'other'), "Ada's ideal Saturday in Nigeria?");
+  assert.match(C.renderSubject(C.Q[1].q, 'Tunde', 'other'), /^Tunde's crush/);
+});
+
+test('renderSubject: no tokens leak in either mode, and plain text passes through', () => {
+  for (const q of C.Q) {
+    assert.doesNotMatch(C.renderSubject(q.q, 'X', 'self'), /\{(they|their)\}/i);
+    assert.doesNotMatch(C.renderSubject(q.q, 'X', 'other'), /\{(they|their)\}/i);
+  }
+  assert.equal(C.renderSubject('Plain text, no tokens', 'X', 'other'), 'Plain text, no tokens');
+});
+
+test('fillName: substitutes ONLY {name}, preserves other authored text (incl. "you")', () => {
+  assert.equal(C.fillName('What would {name} do? And you?', 'Shege'), 'What would Shege do? And you?');
+  assert.equal(C.fillName('{Name} vs {NAME}', 'Ada'), 'Ada vs Ada'); // case-insensitive token
+  assert.equal(C.fillName('No placeholder here', 'Ada'), 'No placeholder here'); // untouched
+  assert.equal(C.fillName('', 'Ada'), '');
+});
+
+test('BACK-COMPAT: existing v1 links still decode; questions render by the creator name; scoring unchanged', async () => {
+  const token = C.encodeChallenge({ owner_name: 'Shege', title: 'How well do you know Shege?', answers: VALID_ANSWERS });
+  const ch = await C.decodeChallenge(token);          // old link still works
+  assert.equal(ch.template_version, 1);
+  const recipientQ = C.renderSubject(C.Q[0].q, ch.owner_name, 'other');
+  assert.match(recipientQ, /Shege/);                  // recipient sees the creator's name
+  assert.ok(!('questions' in ch));                    // v1 questions come from built-in Q
+  assert.equal(C.scoreQuiz(VALID_ANSWERS, ch.answers), C.QUESTION_COUNT); // scoring by index unchanged
+});
+
 test('scoreQuiz counts exact matches', () => {
   assert.equal(C.scoreQuiz(VALID_ANSWERS, VALID_ANSWERS), 7);
   assert.equal(C.scoreQuiz([0, 0, 0, 0, 0, 0, 0], VALID_ANSWERS), 1); // only index 5 (answer 0) matches
