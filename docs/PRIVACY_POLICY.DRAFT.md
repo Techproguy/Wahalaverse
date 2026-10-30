@@ -69,12 +69,24 @@ challenges and activity across devices.
 ## 4. What data we collect
 
 **Guest play (no account):**
-- We do **not** collect personal data on our servers for guest play.
-- Your recent in-game activity is stored **only in your own browser** (`localStorage`)
-  on your device. We cannot read it.
-- When you create a shareable challenge link, your chosen **display name and answer
-  key are encoded into the link itself** (and are therefore visible to anyone who has
-  the link and inspects it). Guest links are not suitable for prizes/competitions.
+- We do not run our **own** server database for guest play, and we do **not** ask you
+  to sign in. But guest play is **not processed exclusively on your device** — be
+  accurate about three things:
+  - **Device-local storage.** Your recent in-game activity and any in-progress
+    "Create Your Own Wahala" draft are stored in your **own browser** (`localStorage`)
+    on your device (keys `wv_activity`, `wv_cc_draft`, `wv_pending_name`). We cannot
+    read these.
+  - **Hosting provider (Vercel).** Serving the site means our hosting/CDN provider
+    (**Vercel**) necessarily **processes your requests** — including your **IP address**,
+    user-agent and standard **access/security logs** — to deliver the pages, even when
+    you play as a guest. Region/retention for that processing: **[OWNER TO CONFIRM]**
+    (see §6–§7).
+  - **Personal content inside shared links.** When you create a challenge link, the
+    **display name and answers you entered are encoded into the link itself**. That is
+    **personal content that travels in the URL** to anyone you share it with (and to
+    whatever app/platform carries the link, e.g. a messaging service). Anyone with the
+    link can read/decode it. Don't put private information in names, questions, or
+    answers; guest links are not suitable for prizes/competitions.
 
 **If you create an account (optional):**
 - **Account:** email address and password (password handling is performed by our
