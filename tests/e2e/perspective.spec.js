@@ -32,26 +32,35 @@ test('Quick Challenge: creator sees "you"; recipient sees the creator\'s name', 
   await expect(page.locator('.result-number')).toContainText('7');
 });
 
-test('Builder: ambiguous "you/my" wording is flagged; "Insert my name" resolves it', async ({ page }) => {
+test('Builder: ambiguous wording flagged; "Use my name" resolves it (incl. the {name}+you bug)', async ({ page }) => {
   await page.goto('/?page=create-custom');
   const firstQuestion = page.locator('section.question').first();
   const q0 = page.locator('input[data-cc="q"][data-qi="0"]');
   await q0.fill('What would you do with free money?');
-  // A friendly, contextual suggestion appears live (and the text is NOT rewritten).
   await expect(firstQuestion.locator('.cc-suggest')).toBeVisible();
-  await expect(firstQuestion.locator('.cc-suggest')).toContainText('Friends are guessing about');
-  await expect(q0).toHaveValue('What would you do with free money?'); // untouched
 
-  // "Insert my name" is labelled plainly (placeholder concept hidden) and clears the flag.
-  const insertBtn = firstQuestion.locator('[data-action="cc-insert-name"]');
-  await expect(insertBtn).toHaveText('Insert my name');
-  await insertBtn.click();
+  // REGRESSION (founder-reported): adding {name} but leaving "you" must NOT clear the warning.
+  await q0.fill('What would you do with free money? {name}');
+  await expect(firstQuestion.locator('.cc-suggest')).toBeVisible();
+
+  // "Use my name" does a SAFE replacement (not an append) — "you" is gone, text is not mangled.
+  await q0.fill('What would you do with free money?');
+  await firstQuestion.locator('[data-action="cc-usename"]').click();
+  await expect(q0).toHaveValue('What would {name} do with free money?');
   await expect(firstQuestion.locator('.cc-suggest')).toBeHidden();
-  await expect(q0).toHaveValue(/\{name\}/);
 
   // Neutral wording is not flagged.
   await page.locator('input[data-cc="q"][data-qi="1"]').fill('Jollof or fried rice?');
   await expect(page.locator('section.question').nth(1).locator('.cc-suggest')).toBeHidden();
+});
+
+test('Builder: "Keep as-is" acknowledges deliberate wording and hides the nudge', async ({ page }) => {
+  await page.goto('/?page=create-custom');
+  const firstQuestion = page.locator('section.question').first();
+  await page.locator('input[data-cc="q"][data-qi="0"]').fill('Would you ever return the money?');
+  await expect(firstQuestion.locator('.cc-suggest')).toBeVisible();
+  await firstQuestion.locator('[data-action="cc-ack"]').click();          // explicit acknowledgement
+  await expect(firstQuestion.locator('.cc-suggest')).toBeHidden();
 });
 
 test('Preview warns (for explicit review) when a question still says "you", and stays consistent with play', async ({ page }) => {
