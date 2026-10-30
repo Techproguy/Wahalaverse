@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WahalaVerse — Founder Acceptance Review</title>
+<style>
+  :root{ --ink:#1a1a2e; --muted:#5b5b73; --line:#e3e3ef; --bg:#f7f7fb; --card:#fff;
+         --lime:#4a8f10; --amber:#b8860b; --red:#b00020; --navy:#111127; --accent:#6b4ff7; }
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       color:var(--ink);background:var(--bg);margin:0;line-height:1.55;font-size:16px}
+  .wrap{max-width:900px;margin:0 auto;padding:28px 20px 80px}
+  header.hero{background:var(--navy);color:#fff;border-radius:16px;padding:26px 28px;margin-bottom:22px}
+  header.hero h1{margin:0 0 6px;font-size:26px}
+  header.hero p{margin:4px 0;color:#c9c9e6}
+  .accent{color:#d1fa49}
+  h2{font-size:20px;margin:34px 0 6px;border-bottom:2px solid var(--line);padding-bottom:6px}
+  h3{font-size:17px;margin:20px 0 4px}
+  p.note{color:var(--muted);font-size:14px;margin:6px 0 14px}
+  .callout{background:#fff8e6;border:1px solid #f0e2b6;border-radius:12px;padding:12px 16px;margin:14px 0;font-size:14.5px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 18px 10px;margin:12px 0}
+  table{width:100%;border-collapse:collapse;margin:6px 0}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14.5px}
+  th{color:var(--muted);font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.03em}
+  td.check{width:46%}
+  .auto{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:#eafbe7;color:var(--lime);white-space:nowrap}
+  .eye{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:#efeaff;color:var(--accent);white-space:nowrap}
+  .verdict{white-space:nowrap}
+  .verdict label{display:inline-flex;align-items:center;gap:3px;margin-right:9px;font-size:12.5px;cursor:pointer}
+  .verdict input{accent-color:var(--accent)}
+  textarea{width:100%;min-height:42px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;font-size:14px;resize:vertical;margin-top:4px}
+  .steps{font-size:14.5px}
+  code,kbd{background:#eee;border-radius:5px;padding:1px 6px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:8px 0 2px}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:#eef;color:#334;margin-left:6px}
+  .play{background:#faf7ff;border:1px solid #e7dfff;border-radius:10px;padding:10px 14px;margin:8px 0;font-size:14px}
+  .play b{color:var(--navy)}
+  .final{background:#fff;border:2px solid var(--accent);border-radius:14px;padding:18px 20px;margin:22px 0}
+  .decision label{display:block;margin:7px 0;font-size:15px}
+  .btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 18px;font-size:15px;font-weight:600;cursor:pointer}
+  .toolbar{position:sticky;top:0;background:var(--bg);padding:10px 0;display:flex;gap:10px;align-items:center;z-index:5;border-bottom:1px solid var(--line);margin-bottom:8px}
+  @media print{
+    body{background:#fff;font-size:12px}
+    .toolbar,.btn{display:none}
+    .card,.final{break-inside:avoid}
+    header.hero{background:#111 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    a{color:inherit;text-decoration:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar">
+    <button class="btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <span class="note" style="margin:0">Fill in the verdicts, add comments, then print or save as PDF to return.</span>
+  </div>
+
+  <header class="hero">
+    <h1>WahalaVerse — Founder Acceptance Review</h1>
+    <p>One integrated, <span class="accent">guest-first</span> build to evaluate as a complete product.</p>
+    <p>Integrated reference build: <code style="color:#fff;background:#2a2a44">integration-rehearsal</code> · combines Create Your Own Wahala + Autosave, all five Assume Their Life roles, and the privacy hardening. <b>Not deployed; not merged.</b></p>
+    <p>Automated checks on this build (30 Oct 2026): <span class="accent">106/106 unit · 54/54 end-to-end — all passing.</span></p>
+  </header>
+
+  <div class="callout">
+    <b>Please note:</b> a green automated check (<span class="auto">PASS (auto)</span>) means the code behaves as programmed — it is <b>not</b> the same as your acceptance. Items marked <span class="eye">👁️ needs you</span> can only be judged by playing it. Your verdict in each row is what counts.
+    <div class="legend" style="margin-top:8px">
+      <span>✅ <b>PASS</b> — good to go</span>
+      <span>⚠️ <b>NEEDS IMPROVEMENT</b> — works but should be better</span>
+      <span>❌ <b>FAIL</b> — broken / unacceptable</span>
+      <span>◻️ <b>NOT TESTED</b> — didn't check</span>
+    </div>
+  </div>
+
+  <h2>What WahalaVerse is</h2>
+  <p class="note">A lightweight, mobile-first Nigerian entertainment website. Everything is <b>guest-first</b> — anyone can play instantly, no sign-up, no download. It runs with no backend and shares challenges as links (great for WhatsApp). Today it offers four experiences:</p>
+  <div class="card">
+    <table>
+      <tr><td><b>Predict My Wahala</b></td><td>A friendship quiz — your people guess your answers to 7 funny Nigerian scenarios.</td></tr>
+      <tr><td><b>Create Your Own Wahala</b></td><td>Write your <i>own</i> 3–10 questions, share a link, friends try to guess you. Drafts autosave.</td></tr>
+      <tr><td><b>Survive Naija</b></td><td>A salary-and-life-decisions mini-game.</td></tr>
+      <tr><td><b>Assume Their Life</b></td><td>A causal life-simulation — step into a role, make decisions over a year, live with the consequences. Five lives: <b>Founder, CEO, Billionaire, Political Leadership</b> (core) and <b>Afrobeats</b> (additional).</td></tr>
+    </table>
+  </div>
+
+  <h2>How to open the build</h2>
+  <div class="card steps">
+    <p><b>On a computer:</b></p>
+    <p>1. <code>git checkout integration-rehearsal</code><br>
+       2. <code>python3 -m http.server 8080</code><br>
+       3. Open <code>http://localhost:8080</code></p>
+    <p><b>On a phone (same Wi-Fi):</b> open <code>http://&lt;your-computer-IP&gt;:8080</code>. Gameplay works fully; the native WhatsApp <i>share sheet</i> needs an HTTPS address, so on local it falls back to “copy link”. (For full WhatsApp share testing on a phone, a secure preview link is needed — see the last page.)</p>
+  </div>
+
+  <h2>A · Existing guest games (nothing broke)</h2>
+  <div class="card"><table>
+    <tr><th class="check">Check</th><th>Evidence</th><th>Your verdict</th></tr>
+    <tr><td class="check">Predict My Wahala: create → share link → open fresh → score</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Survive Naija: full run → outcome → restart</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Old Quick Challenge links still open</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Back/forward navigation works</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+  </table><textarea placeholder="Comments on existing games…"></textarea></div>
+
+  <h2>B · Create Your Own Wahala + Autosave</h2>
+  <div class="card"><table>
+    <tr><th class="check">Check</th><th>Evidence</th><th>Your verdict</th></tr>
+    <tr><td class="check">Create 3–10 questions</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Add/remove options; mark the intended answer</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Validation + progress feedback</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Preview → return to edit</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Generate link + Copy</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Recipient plays the link → score + CTA</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Autosave + recovery after a reload</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Recovery of an <i>incomplete</i> draft</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">“Start Fresh” / discard clears the draft</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Draft cleared after a successful generate</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">WhatsApp native share on a phone (HTTPS)</td><td><span class="eye">👁️ needs you</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Builder <i>feel</i> on mobile (typing, tapping)</td><td><span class="eye">👁️ needs you</span></td><td class="verdict" data-row></td></tr>
+  </table><textarea placeholder="Comments on Create Your Own Wahala + autosave…"></textarea></div>
+
+  <h2>C · Assume Their Life — five lives</h2>
+  <p class="note">Open <b>Explore → Assume Their Life</b>. The picker should show all five. Each plays to a “Reckoning” that explains what happened and why. Two <b>contrasting</b> runs are given per core role — tap the buttons in order; the result is the same every time.</p>
+
+  <h3>Founder Life — <i>Zero to One</i></h3>
+  <div class="play"><b>Diluted:</b> Cofounder 50/50 → Bootstrap → Persevere → Stay lean → <b>Aggressive VC (3× pref)</b> → Head down → <b>Sell</b> → <i>Diluted to Nothing</i> (a real sale, you get crumbs).<br>
+  <b>Scaled:</b> Go solo → Bootstrap → <b>Pivot to PMF</b> → Senior hire + ESOP → <b>Clean round</b> → Rally → <b>Sell</b> → <i>Venture Scaled</i>.<br>
+  <span class="note">Same “sell” action, opposite payout — because of the ownership terms you set earlier.</span></div>
+  <div class="card"><table><tr><td class="check">Founder Life plays to its Reckoning; the two runs end differently and the difference makes sense</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr></table><textarea placeholder="Comments on Founder Life…"></textarea></div>
+
+  <h3>CEO Life — <i>Corner Office</i></h3>
+  <div class="play"><b>Ousted:</b> Balanced → Promote internal → Push sales → <b>Public proxy fight</b> → Return cash → Rally → Deliver → <i>Ousted by the Board</i>.<br>
+  <b>Turnaround:</b> Bet on growth → Retain CFO → <b>Invest in R&amp;D</b> → Negotiate activist → Raise equity → Rally → Deliver → <i>Turnaround Hero</i>.<br>
+  <span class="note">You are a hired boss — the board can actually vote you out.</span></div>
+  <div class="card"><table><tr><td class="check">CEO Life plays through; board can remove you vs back you</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr></table><textarea placeholder="Comments on CEO Life…"></textarea></div>
+
+  <h3>Billionaire Life — <i>Paper &amp; Power</i></h3>
+  <div class="play"><b>Liquidity crisis:</b> Borrow (margin) → Refuse family → <b>Lever up for the trophy</b> → <b>Hold through the crash</b> → Lobby → Call favours → Mega-bet → <i>Rich on Paper, Broke in Cash</i>.<br>
+  <b>Dynasty:</b> Sell listed stock → Back family → Minority stake → <b>Deleverage in the crash</b> → Philanthropy → Restructure → Succession → <i>Dynasty Secured</i>.<br>
+  <span class="note">You can be worth billions on paper yet run out of cash — leverage + a crash forces fire-sales.</span></div>
+  <div class="card"><table><tr><td class="check">Billionaire Life plays through; paper-rich-but-cash-poor squeeze is real</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr></table><textarea placeholder="Comments on Billionaire Life…"></textarea></div>
+
+  <h3>Political Leadership — <i>The Mandate</i></h3>
+  <div class="play"><b>Fiscal ruin:</b> Big popular spend → Water-down → <b>Divert the capital budget</b> → Downplay unrest → Blame opposition → <b>Year-end giveaway</b> → Full populist → <i>Fiscal Ruin</i> (popular ≠ affordable).<br>
+  <b>Reformer:</b> <b>Invest in capacity</b> → Bold reform (passes <i>and</i> gets implemented) → Federal help → Dialogue → … → Run on record → <i>The Reformer</i>.<br>
+  <span class="note">A popular choice isn’t automatically affordable, and a passed law only helps people if the state can actually implement it.</span></div>
+  <div class="card"><table><tr><td class="check">Political Life plays through; budget + implementation constraints bite</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr></table><textarea placeholder="Comments on Political Leadership…"></textarea></div>
+
+  <h3>Afrobeats — <i>Breakout Year</i> <span class="pill">additional role</span></h3>
+  <div class="play"><b>Cancelled:</b> Sign the 360 deal → Safe pop single → Start the beef → Double down → Hold the album → <i>Cancelled</i>.<br>
+  <b>Global Breakout:</b> Stay independent → Keep your day-ones → Stay humble → Go dark → Drop the album → <i>Global Breakout</i>.</div>
+  <div class="card"><table><tr><td class="check">Afrobeats plays through with contrasting outcomes</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr></table><textarea placeholder="Comments on Afrobeats…"></textarea></div>
+
+  <h3>Overall feel of the simulations (your judgement)</h3>
+  <div class="card"><table>
+    <tr><th class="check">Check</th><th></th><th>Your verdict</th></tr>
+    <tr><td class="check">Does each role feel like an <i>evolving life</i>, not disconnected cards?</td><td><span class="eye">👁️ needs you</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Are the consequences satisfying and clear in the Reckoning?</td><td><span class="eye">👁️ needs you</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Are the money / business / political outcomes believable?</td><td><span class="eye">👁️ needs you</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Is the Nigerian voice and humour right?</td><td><span class="eye">👁️ needs you</span></td><td class="verdict" data-row></td></tr>
+  </table><textarea placeholder="Overall comments on the life simulations…"></textarea></div>
+
+  <h2>D · Mobile &amp; sharing</h2>
+  <div class="card"><table>
+    <tr><th class="check">Check</th><th>Evidence</th><th>Your verdict</th></tr>
+    <tr><td class="check">Phone layout: bottom nav shows, no sideways scrolling</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Overall mobile usability feel</td><td><span class="eye">👁️ needs you</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">WhatsApp share of a challenge AND a role result (on a phone)</td><td><span class="eye">👁️ needs you</span></td><td class="verdict" data-row></td></tr>
+  </table><textarea placeholder="Comments on mobile + sharing…"></textarea></div>
+
+  <h2>E · Privacy hardening</h2>
+  <div class="card"><table>
+    <tr><th class="check">Check</th><th>Evidence</th><th>Your verdict</th></tr>
+    <tr><td class="check">Fonts load from our own site (no Google request)</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Font licences included (free/open, OK to bundle)</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Security headers configured (incl. Content-Security-Policy)</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">No security-policy errors / broken fonts / game breakage</td><td><span class="auto">PASS (auto)</span></td><td class="verdict" data-row></td></tr>
+    <tr><td class="check">Confirm the live security headers in the browser (on the secure preview, logged in)</td><td><span class="eye">👁️ needs you</span></td><td class="verdict" data-row></td></tr>
+  </table><textarea placeholder="Comments on privacy hardening…"></textarea></div>
+
+  <h2>Release gates (what each release needs)</h2>
+  <div class="card">
+    <h3>🟢 Guest-only release (no accounts, no data collected on our servers)</h3>
+    <p class="note">Everything in this review is guest-first. This release does <b>not</b> enable accounts, so Milestone 2 is <b>not</b> a blocker for it.</p>
+    <ul class="steps">
+      <li>Your acceptance of guest gameplay (sections A–D)</li>
+      <li>Create Your Own Wahala + autosave (section B)</li>
+      <li>All five Assume Their Life roles (section C)</li>
+      <li>Privacy hardening verified (section E)</li>
+      <li>A published Privacy Policy with a <b>genuine working contact</b> + simple guest-data disclosures (we store recent activity and a draft on your own device only)</li>
+      <li>Full regression testing (automated ✅; your spot-checks)</li>
+    </ul>
+    <h3>🔵 Account-enabled release (adds sign-in &amp; cloud save) — later</h3>
+    <ul class="steps">
+      <li>Everything in the guest-only release, <b>plus:</b></li>
+      <li>Milestone 2 live email/password sign-in verified</li>
+      <li>Two-account data-isolation (RLS) verified</li>
+      <li>Data export &amp; account deletion verified</li>
+      <li>Confirmed Supabase data location + the related disclosures</li>
+      <li>Account-specific age &amp; data-retention decisions</li>
+    </ul>
+  </div>
+
+  <div class="final">
+    <h3 style="margin-top:4px">Final founder verdict</h3>
+    <p style="margin:6px 0"><b>Items you marked FAIL or NEEDS IMPROVEMENT (list):</b></p>
+    <textarea placeholder="e.g. B11 WhatsApp share…"></textarea>
+    <p style="margin:14px 0 4px"><b>Overall comments:</b></p>
+    <textarea placeholder="Your overall thoughts…"></textarea>
+    <p style="margin:16px 0 4px"><b>Decision:</b></p>
+    <div class="decision">
+      <label><input type="radio" name="final"> ✅ Accept for guest-only release prep</label>
+      <label><input type="radio" name="final"> ⚠️ Accept with the changes listed above</label>
+      <label><input type="radio" name="final"> ❌ Not yet — rework needed</label>
+    </div>
+    <p class="note" style="margin-top:14px">This build is a local rehearsal only — nothing is merged or deployed. Publishing the Privacy Policy still needs a genuine working contact, Supabase data location, the age decision, retention periods, an effective date, and a legal review.</p>
+  </div>
+</div>
+
+<script>
+  // Render four verdict radio groups per row. Pure vanilla JS, no libraries, no network.
+  var opts=[['pass','✅ PASS'],['needs','⚠️ NEEDS IMP.'],['fail','❌ FAIL'],['na','◻️ NOT TESTED']];
+  document.querySelectorAll('td.verdict[data-row]').forEach(function(td,i){
+    opts.forEach(function(o){
+      var l=document.createElement('label');
+      l.innerHTML='<input type="radio" name="r'+i+'"> '+o[1];
+      td.appendChild(l);
+    });
+  });
+</script>
+</body>
+</html>
