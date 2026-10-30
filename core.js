@@ -79,6 +79,23 @@
     return String(text == null ? '' : text).replace(/\{name\}/gi, String(name == null ? '' : name).trim());
   }
 
+  // Detect first-/second-person wording in creator-authored custom text so the Builder
+  // can NUDGE the creator to refer to themselves by name (recipients predict the
+  // creator, so a bare "you"/"my" is ambiguous). This NEVER rewrites text — it only
+  // reports. A question that already uses the {name} placeholder is considered clear.
+  const PERSPECTIVE_WORDS = new Set([
+    'i', "i'm", "i've", "i'd", "i'll", 'me', 'my', 'mine', 'myself', 'we', "we're", 'our', 'ours', 'us',
+    'you', "you're", "you'd", "you'll", 'your', 'yours', 'yourself',
+  ]);
+  function detectPerspective(text) {
+    const t = String(text == null ? '' : text);
+    const hasName = /\{name\}/i.test(t);
+    const toks = t.toLowerCase().replace(/’/g, "'").match(/[a-z']+/g) || [];
+    const words = [...new Set(toks.filter(w => PERSPECTIVE_WORDS.has(w)))];
+    return { hasName, words, ambiguous: words.length > 0 && !hasName };
+  }
+  const hasAmbiguousPerspective = (text) => detectPerspective(text).ambiguous;
+
   // --- Guest challenge link encoding ----------------------------------------
   // Answers are base64url-encoded into the URL. Observable to technical users —
   // suitable for casual fun, NOT for prizes/competitions.
@@ -276,7 +293,7 @@
 
   return {
     Q, QUESTION_COUNT, DEMO, SCENES, SIM_START, CUSTOM_LIMITS, CC_DRAFT_VERSION,
-    escapeHtml, titleCase, formatNaira, renderSubject, fillName,
+    escapeHtml, titleCase, formatNaira, renderSubject, fillName, detectPerspective, hasAmbiguousPerspective,
     encodeChallenge, encodeCustomChallenge, decodeChallenge, validateCustomChallenge,
     isMeaningfulCustomDraft, sanitizeCustomDraft,
     scoreQuiz, applySimChoice, syncableActivities,

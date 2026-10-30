@@ -200,6 +200,29 @@ test('fillName: substitutes ONLY {name}, preserves other authored text (incl. "y
   assert.equal(C.fillName('', 'Ada'), '');
 });
 
+test('detectPerspective: flags first/second-person wording, clears on {name} or neutral text', () => {
+  assert.equal(C.hasAmbiguousPerspective('What would you do?'), true);
+  assert.equal(C.hasAmbiguousPerspective('What is my favourite jollof?'), true);
+  assert.equal(C.hasAmbiguousPerspective('Would I ever skip owambe?'), true);
+  assert.equal(C.hasAmbiguousPerspective('What would {name} do?'), false); // explicit placeholder = clear
+  assert.equal(C.hasAmbiguousPerspective('Jollof or fried rice?'), false); // neutral
+  const d = C.detectPerspective('Your crush texts you — your move?');
+  assert.equal(d.ambiguous, true);
+  assert.ok(d.words.includes('your') && d.words.includes('you'));
+});
+
+test('all SEVEN Quick questions render naturally in both perspectives (no tokens, clean possessives)', () => {
+  for (let i = 0; i < C.Q.length; i++) {
+    const self = C.renderSubject(C.Q[i].q, 'Ada', 'self');
+    const other = C.renderSubject(C.Q[i].q, 'Ada', 'other');
+    assert.doesNotMatch(self + other, /\{(they|their)\}/i, `Q${i} leaves no token`);
+    assert.doesNotMatch(other, /\byou'?s\b/i, `Q${i} has no broken "you's"`);
+    assert.doesNotMatch(other, /Ada's's/, `Q${i} has no double possessive`);
+    assert.match(other, /Ada/, `Q${i} names the creator for recipients`);
+    assert.match(self.toLowerCase(), /\byou\b|\byour\b/, `Q${i} addresses the creator in self mode`);
+  }
+});
+
 test('BACK-COMPAT: existing v1 links still decode; questions render by the creator name; scoring unchanged', async () => {
   const token = C.encodeChallenge({ owner_name: 'Shege', title: 'How well do you know Shege?', answers: VALID_ANSWERS });
   const ch = await C.decodeChallenge(token);          // old link still works

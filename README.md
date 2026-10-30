@@ -35,10 +35,10 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 111 tests: core + account + CYOW + Assume Their Life engine/systems/5 role packs
+npm run test:unit            # -> 113 tests: core + account + CYOW + Assume Their Life engine/systems/5 role packs
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
-npm run test:e2e             # -> 58 checks across Desktop Chrome + Pixel 7 viewports
+npm run test:e2e             # -> 62 checks across Desktop Chrome + Pixel 7 viewports
 
 # Everything
 npm test
@@ -56,7 +56,7 @@ transitions, delayed consequences that fire later and trace back, commitment enf
 horizon, divergent outcomes from different early choices, player agency (declining paths), and the
 Reckoning explanation. The Founder Life pack adds cap-table dilution and liquidation-preference
 tests (a "sold the company" exit can still leave the founder with almost nothing). Last run
-(2026-10-30, integrated build): **111/111 unit, 58/58 E2E passing (169 total).**
+(2026-10-30, integrated build): **113/113 unit, 62/62 E2E passing (175 total).**
 
 **Untested paths (require live Supabase — Milestone 2):** email magic-link sign-in,
 cloud challenge storage/retrieval, real activity upload/RLS, and profile creation.

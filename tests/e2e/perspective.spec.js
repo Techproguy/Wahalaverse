@@ -32,6 +32,43 @@ test('Quick Challenge: creator sees "you"; recipient sees the creator\'s name', 
   await expect(page.locator('.result-number')).toContainText('7');
 });
 
+test('Builder: ambiguous "you/my" wording is flagged; "Insert my name" resolves it', async ({ page }) => {
+  await page.goto('/?page=create-custom');
+  const firstQuestion = page.locator('section.question').first();
+  const q0 = page.locator('input[data-cc="q"][data-qi="0"]');
+  await q0.fill('What would you do with free money?');
+  // A friendly, contextual suggestion appears live (and the text is NOT rewritten).
+  await expect(firstQuestion.locator('.cc-suggest')).toBeVisible();
+  await expect(firstQuestion.locator('.cc-suggest')).toContainText('Friends are guessing about');
+  await expect(q0).toHaveValue('What would you do with free money?'); // untouched
+
+  // "Insert my name" is labelled plainly (placeholder concept hidden) and clears the flag.
+  const insertBtn = firstQuestion.locator('[data-action="cc-insert-name"]');
+  await expect(insertBtn).toHaveText('Insert my name');
+  await insertBtn.click();
+  await expect(firstQuestion.locator('.cc-suggest')).toBeHidden();
+  await expect(q0).toHaveValue(/\{name\}/);
+
+  // Neutral wording is not flagged.
+  await page.locator('input[data-cc="q"][data-qi="1"]').fill('Jollof or fried rice?');
+  await expect(page.locator('section.question').nth(1).locator('.cc-suggest')).toBeHidden();
+});
+
+test('Preview warns (for explicit review) when a question still says "you", and stays consistent with play', async ({ page }) => {
+  await page.goto('/?page=create-custom');
+  await page.locator('#cc-name').fill('Bisi');
+  // Deliberately keep ambiguous wording in Q1 (allowed) — creator must review it.
+  await fillQuestion(page, 0, 'Would you ever return the money?', ['Yes', 'No'], 0);
+  await fillQuestion(page, 1, 'Best city for {name}?', ['Lagos', 'Abuja'], 0);
+  await fillQuestion(page, 2, 'Owambe or Netflix for {name}?', ['Owambe', 'Netflix'], 0);
+  await page.locator('[data-action="cc-preview"]').click();
+  // Explicit-review banner shows because Q1 still says "you".
+  await expect(page.getByText(/exactly.*what your friends will see/i)).toBeVisible();
+  // Preview wording equals recipient wording: {name} filled, ambiguous text preserved verbatim.
+  await expect(page.locator('.question h3').nth(1)).toContainText('Best city for Bisi?');
+  await expect(page.locator('.question h3').first()).toContainText('Would you ever return the money?');
+});
+
 test('Custom: {name} placeholder renders the creator name in Preview and recipient play', async ({ page }) => {
   await page.goto('/?page=create-custom');
   await page.locator('#cc-name').fill('Amaka');
