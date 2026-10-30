@@ -39,6 +39,10 @@ No install needed for guest play. For WhatsApp native-share testing you need an 
 | B8 | Recovery of an **incomplete** draft | ✅ PASS (auto) | | |
 | B9 | Start Fresh / discard clears the draft | ✅ PASS (auto) | | |
 | B10 | Draft cleared after successful generation | ✅ PASS (auto) | | |
+| B10a | **Perspective:** recipient questions name the **creator** ("If Shege…"), never "you" | ✅ PASS (auto) | | |
+| B10b | **Perspective:** Builder flags ambiguous "you/my" wording; **Insert my name** resolves it | ✅ PASS (auto) | | |
+| B10c | **Perspective:** Preview = exact recipient wording + review banner when a question still says "you" | ✅ PASS (auto) | | |
+| B10d 👁️ | **Perspective:** play a shared challenge as a friend — each question reads clearly about the creator | — needs you | | |
 | B11 👁️ | **WhatsApp native share** on a real phone (HTTPS) | — needs device | | |
 | B12 👁️ | Builder **feel** on mobile (typing, tapping answers) | — needs you | | |
 
