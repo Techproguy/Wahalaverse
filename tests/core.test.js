@@ -11,43 +11,244 @@ test('QUESTION_COUNT matches the question list (7)', () => {
   assert.equal(C.Q.length, 7);
 });
 
-test('encode/decode round-trips a challenge (incl. emoji + diacritics)', () => {
+test('encode/decode round-trips a v1 challenge (incl. emoji + diacritics)', async () => {
   const ch = { owner_name: 'Tọlá 😭', title: 'How well do you know Tọlá?', answers: VALID_ANSWERS };
-  const token = C.encodeChallenge(ch);
-  const back = C.decodeChallenge(token);
+  const back = await C.decodeChallenge(C.encodeChallenge(ch));
   assert.equal(back.owner_name, ch.owner_name);
   assert.equal(back.title, ch.title);
   assert.deepEqual(back.answers, ch.answers);
   assert.equal(back.type, 'guest');
+  assert.equal(back.template_version, 1);
 });
 
-test('encoded token is URL-safe base64 (no +, /, or =)', () => {
+test('v1 encoded token is URL-safe base64 (no +, /, or =)', () => {
   const token = C.encodeChallenge({ owner_name: 'Zee', title: 'x', answers: VALID_ANSWERS });
   assert.match(token, /^[A-Za-z0-9_-]+$/);
 });
 
-test('decodeChallenge rejects garbage', () => {
-  assert.throws(() => C.decodeChallenge('!!!not-base64!!!'));
-  assert.throws(() => C.decodeChallenge(''));
+test('decodeChallenge rejects garbage', async () => {
+  await assert.rejects(() => C.decodeChallenge('!!!not-base64!!!'));
+  await assert.rejects(() => C.decodeChallenge(''));
 });
 
-test('decodeChallenge rejects wrong answer length', () => {
+test('decodeChallenge rejects wrong answer length', async () => {
   const bad = C.encodeChallenge({ owner_name: 'Z', title: 'x', answers: [0, 1, 2] });
-  assert.throws(() => C.decodeChallenge(bad), /Bad challenge/);
+  await assert.rejects(() => C.decodeChallenge(bad), /Bad challenge/);
 });
 
-test('decodeChallenge rejects out-of-range answers', () => {
+test('decodeChallenge rejects out-of-range answers', async () => {
   const bad = C.encodeChallenge({ owner_name: 'Z', title: 'x', answers: [0, 1, 2, 3, 0, 1, 2] });
-  assert.throws(() => C.decodeChallenge(bad), /Bad challenge/);
+  await assert.rejects(() => C.decodeChallenge(bad), /Bad challenge/);
 });
 
-test('decodeChallenge rejects oversized token', () => {
-  assert.throws(() => C.decodeChallenge('a'.repeat(3501)), /Bad link/);
+test('decodeChallenge rejects oversized token', async () => {
+  await assert.rejects(() => C.decodeChallenge('a'.repeat(4001)), /Bad link/);
 });
 
-test('decodeChallenge rejects overlong owner name', () => {
+test('decodeChallenge rejects overlong owner name', async () => {
   const bad = C.encodeChallenge({ owner_name: 'x'.repeat(40), title: 'x', answers: VALID_ANSWERS });
-  assert.throws(() => C.decodeChallenge(bad), /Bad challenge/);
+  await assert.rejects(() => C.decodeChallenge(bad), /Bad challenge/);
+});
+
+// --- Create Your Own Wahala (v2 custom challenges) ---------------------------
+const CUSTOM = {
+  owner_name: 'Tolu 😎',
+  title: 'Guess my vibes',
+  questions: [
+    { q: 'Fav jollof?', a: ['Party', 'Home', 'Both'] },
+    { q: 'Lagos or Abuja?', a: ['Lagos', 'Abuja'] },
+    { q: 'Owambe or Netflix?', a: ['Owambe', 'Netflix', 'Depends'] },
+  ],
+  answers: [2, 0, 1],
+};
+
+test('validateCustomChallenge accepts a well-formed custom challenge', () => {
+  assert.deepEqual(C.validateCustomChallenge(CUSTOM), { ok: true });
+});
+
+test('custom challenge (v2) round-trips (compressed) incl. emoji + authored text', async () => {
+  const token = await C.encodeCustomChallenge(CUSTOM);
+  assert.equal(token[0], '~', 'v2 tokens are gzip-compressed (~ prefix)');
+  const back = await C.decodeChallenge(token);
+  assert.equal(back.template_version, 2);
+  assert.equal(back.owner_name, 'Tolu 😎');
+  assert.equal(back.questions.length, 3);
+  assert.deepEqual(back.questions[0].a, ['Party', 'Home', 'Both']);
+  assert.deepEqual(back.answers, [2, 0, 1]);
+});
+
+test('a heavy 10-question emoji challenge encodes within the cap and round-trips exactly', async () => {
+  const mk = (n) => ({ q: `E be like say na you o 😂 Question ${n} — oya choose wisely, no dulling!`, a: ['Na lie o 🙅🏾‍♂️', 'I go gbese small 💀', 'Soft life or nothing ✈️🇳🇬', 'Leave matter jare 😮‍💨'] });
+  const big = { owner_name: 'Oga Emeka 😎🔥', title: 'How well you sabi Emeka? 🇳🇬', questions: Array.from({ length: 10 }, (_, i) => mk(i + 1)), answers: Array.from({ length: 10 }, (_, i) => i % 4) };
+  assert.deepEqual(C.validateCustomChallenge(big), { ok: true });
+  const token = await C.encodeCustomChallenge(big);
+  assert.ok(token.length <= 4000, `token ${token.length} within cap`);
+  const back = await C.decodeChallenge(token);
+  assert.equal(back.questions.length, 10);          // never silently drops questions
+  assert.deepEqual(back.answers, big.answers);      // never alters intended answers
+  assert.deepEqual(back.questions, big.questions);  // text/options preserved exactly
+});
+
+test('encodeCustomChallenge throws too-long (never truncates) when a challenge cannot fit', async () => {
+  // High-entropy, oversized content (incompressible) → the token exceeds the cap, so
+  // encode throws 'too-long' rather than dropping questions or altering answers.
+  const crypto = require('node:crypto');
+  const rnd = (n) => crypto.randomBytes(n).toString('base64').slice(0, n);
+  const big = { owner_name: 'Zee', title: 't', questions: Array.from({ length: 10 }, () => ({ q: rnd(1200), a: [rnd(400), rnd(400)] })), answers: Array(10).fill(0) };
+  await assert.rejects(() => C.encodeCustomChallenge(big), (e) => e.code === 'too-long');
+});
+
+test('v1 Quick Challenge links still decode after v2 was added (back-compat)', async () => {
+  const back = await C.decodeChallenge(C.encodeChallenge({ owner_name: 'Zee', title: 'x', answers: VALID_ANSWERS }));
+  assert.equal(back.template_version, 1);
+  assert.equal('questions' in back, false);
+});
+
+test('validateCustomChallenge rejects bad shapes', () => {
+  const bad = (over) => C.validateCustomChallenge({ ...CUSTOM, ...over });
+  assert.equal(bad({ owner_name: 'x' }).ok, false);                 // name too short
+  assert.equal(bad({ questions: CUSTOM.questions.slice(0, 2) }).ok, false); // < 3 questions
+  assert.equal(bad({ questions: Array.from({ length: 11 }, () => ({ q: 'q', a: ['a', 'b'] })), answers: Array(11).fill(0) }).ok, false); // > 10
+  assert.equal(bad({ answers: [2, 0] }).ok, false);                 // answers length != questions
+  assert.equal(C.validateCustomChallenge({ ...CUSTOM, questions: [{ q: 'one option', a: ['only'] }, CUSTOM.questions[1], CUSTOM.questions[2]], answers: [0, 0, 1] }).ok, false); // < 2 options
+  assert.equal(C.validateCustomChallenge({ ...CUSTOM, answers: [9, 0, 1] }).ok, false); // answer index out of range
+  assert.equal(C.validateCustomChallenge({ ...CUSTOM, questions: [{ q: 'x'.repeat(200), a: ['a', 'b'] }, CUSTOM.questions[1], CUSTOM.questions[2]], answers: [0, 0, 1] }).ok, false); // question too long
+  assert.equal(C.validateCustomChallenge({ ...CUSTOM, questions: [{ q: 'ok', a: ['a', 'b', 'c', 'd', 'e'] }, CUSTOM.questions[1], CUSTOM.questions[2]], answers: [0, 0, 1] }).ok, false); // > 4 options
+});
+
+test('decodeChallenge rejects a malformed v2 payload', async () => {
+  const badToken = await C.encodeCustomChallenge({ owner_name: 'Z', title: 't', questions: [{ q: 'only one', a: ['a', 'b'] }], answers: [0] });
+  await assert.rejects(() => C.decodeChallenge(badToken), /Bad challenge/);
+});
+
+// --- Create Your Own Wahala draft autosave (pure helpers) --------------------
+test('isMeaningfulCustomDraft: pristine blank is NOT saved, any content IS', () => {
+  const blank = [{ q: '', a: ['', ''], answer: null }, { q: '', a: ['', ''], answer: null }];
+  assert.equal(C.isMeaningfulCustomDraft('', blank), false);
+  assert.equal(C.isMeaningfulCustomDraft('  ', blank), false);
+  assert.equal(C.isMeaningfulCustomDraft('Tolu', blank), true);         // name typed
+  assert.equal(C.isMeaningfulCustomDraft('', [{ q: 'Fav?', a: ['', ''], answer: null }]), true); // question typed
+  assert.equal(C.isMeaningfulCustomDraft('', [{ q: '', a: ['Lagos', ''], answer: null }]), true); // option typed
+});
+
+test('sanitizeCustomDraft restores an INCOMPLETE draft (no final validation required)', () => {
+  const raw = { v: C.CC_DRAFT_VERSION, name: 'Tolu', questions: [{ q: 'Fav jollof?', a: ['Party', ''], answer: null }] };
+  const safe = C.sanitizeCustomDraft(raw);
+  assert.ok(safe);
+  assert.equal(safe.name, 'Tolu');
+  assert.equal(safe.questions.length, 1);          // a single, half-finished question is fine
+  assert.deepEqual(safe.questions[0].a, ['Party', '']); // empty option preserved
+  assert.equal(safe.questions[0].answer, null);
+});
+
+test('sanitizeCustomDraft rejects unusable / corrupted blobs', () => {
+  assert.equal(C.sanitizeCustomDraft(null), null);
+  assert.equal(C.sanitizeCustomDraft('nope'), null);
+  assert.equal(C.sanitizeCustomDraft({ v: 999, questions: [{ q: 'x', a: ['a', 'b'] }] }), null); // wrong version
+  assert.equal(C.sanitizeCustomDraft({ v: C.CC_DRAFT_VERSION, questions: [] }), null);            // no questions
+  assert.equal(C.sanitizeCustomDraft({ v: C.CC_DRAFT_VERSION, questions: 'bad' }), null);
+  assert.equal(C.sanitizeCustomDraft({ v: C.CC_DRAFT_VERSION, questions: [null] }), null);        // malformed question
+});
+
+test('sanitizeCustomDraft clamps to the field limits (size + structure safety)', () => {
+  const L = C.CUSTOM_LIMITS;
+  const raw = {
+    v: C.CC_DRAFT_VERSION,
+    name: 'x'.repeat(200),
+    questions: [
+      { q: 'y'.repeat(500), a: Array.from({ length: 12 }, (_, i) => 'o'.repeat(200) + i), answer: 99 }, // too many/too long options, bad answer
+      { q: 'ok', a: ['only-one'], answer: 0 }, // fewer than min options -> padded
+    ].concat(Array.from({ length: 20 }, () => ({ q: 'extra', a: ['a', 'b'], answer: 0 }))), // too many questions
+  };
+  const safe = C.sanitizeCustomDraft(raw);
+  assert.ok(safe.name.length <= L.nameLen);
+  assert.ok(safe.questions.length <= L.maxQuestions);                 // question count capped
+  assert.ok(safe.questions[0].q.length <= L.questionLen);             // question text clamped
+  assert.ok(safe.questions[0].a.length <= L.maxOptions);              // option count capped
+  assert.ok(safe.questions[0].a.every(o => o.length <= L.optionLen)); // option text clamped
+  assert.equal(safe.questions[0].answer, null);                       // out-of-range answer dropped
+  assert.ok(safe.questions[1].a.length >= L.minOptions);              // padded up to the minimum
+});
+
+// --- Challenge question perspective (recipient predicts the creator) ----------
+test('renderSubject: SELF mode addresses the creator as "you"/"your"', () => {
+  assert.equal(C.renderSubject(C.Q[0].q, 'Shege', 'self'),
+    'If you just received ₦500,000 by mistake, what would you most likely do?');
+  assert.equal(C.renderSubject(C.Q[6].q, 'Shege', 'self'), 'Your ideal Saturday in Nigeria?');
+});
+
+test('renderSubject: OTHER mode names the creator (matches the founder example)', () => {
+  assert.equal(C.renderSubject(C.Q[0].q, 'Shege', 'other'),
+    'If Shege just received ₦500,000 by mistake, what would Shege most likely do?');
+  // possessive + sentence-initial
+  assert.equal(C.renderSubject(C.Q[6].q, 'Ada', 'other'), "Ada's ideal Saturday in Nigeria?");
+  assert.match(C.renderSubject(C.Q[1].q, 'Tunde', 'other'), /^Tunde's crush/);
+});
+
+test('renderSubject: no tokens leak in either mode, and plain text passes through', () => {
+  for (const q of C.Q) {
+    assert.doesNotMatch(C.renderSubject(q.q, 'X', 'self'), /\{(they|their)\}/i);
+    assert.doesNotMatch(C.renderSubject(q.q, 'X', 'other'), /\{(they|their)\}/i);
+  }
+  assert.equal(C.renderSubject('Plain text, no tokens', 'X', 'other'), 'Plain text, no tokens');
+});
+
+test('fillName: substitutes ONLY {name}, preserves other authored text (incl. "you")', () => {
+  assert.equal(C.fillName('What would {name} do? And you?', 'Shege'), 'What would Shege do? And you?');
+  assert.equal(C.fillName('{Name} vs {NAME}', 'Ada'), 'Ada vs Ada'); // case-insensitive token
+  assert.equal(C.fillName('No placeholder here', 'Ada'), 'No placeholder here'); // untouched
+  assert.equal(C.fillName('', 'Ada'), '');
+});
+
+test('detectPerspective: flags first/second-person wording, clears on {name} or neutral text', () => {
+  assert.equal(C.hasAmbiguousPerspective('What would you do?'), true);
+  assert.equal(C.hasAmbiguousPerspective('What is my favourite jollof?'), true);
+  assert.equal(C.hasAmbiguousPerspective('Would I ever skip owambe?'), true);
+  assert.equal(C.hasAmbiguousPerspective('What would {name} do?'), false); // explicit placeholder = clear
+  assert.equal(C.hasAmbiguousPerspective('Jollof or fried rice?'), false); // neutral
+  const d = C.detectPerspective('Your crush texts you — your move?');
+  assert.equal(d.ambiguous, true);
+  assert.ok(d.words.includes('your') && d.words.includes('you'));
+});
+
+test('REGRESSION: {name} anywhere does NOT clear a remaining "you"; "Use my name" resolves it safely', () => {
+  // The founder's exact example: appending {name} but leaving "you" must stay flagged.
+  assert.equal(C.hasAmbiguousPerspective('What would you do with ₦500k? {name}'), true);
+  // creator-initiated safe replacement actually resolves the ambiguity
+  const r = C.resolveToName('What would you do with ₦500k?');
+  assert.equal(r, 'What would {name} do with ₦500k?');
+  assert.equal(C.hasAmbiguousPerspective(r), false);
+  assert.equal(C.fillName(r, 'Shege'), 'What would Shege do with ₦500k?'); // == Preview/recipient wording
+  // possessive + mixed {name}+you
+  assert.equal(C.resolveToName('Your crush — your move?'), "{name}'s crush — {name}'s move?");
+  assert.equal(C.resolveToName('{name} vs you'), '{name} vs {name}');
+  // subject "I" is NOT auto-rewritten (grammar safety) -> stays flagged for manual edit
+  assert.equal(C.resolveToName('Would I skip owambe?'), 'Would I skip owambe?');
+  assert.equal(C.hasAmbiguousPerspective('Would I skip owambe?'), true);
+  // whole-word only: never mangles substrings
+  assert.equal(C.resolveToName('message young'), 'message young');
+});
+
+test('all SEVEN Quick questions render naturally in both perspectives (no tokens, clean possessives)', () => {
+  for (let i = 0; i < C.Q.length; i++) {
+    const self = C.renderSubject(C.Q[i].q, 'Ada', 'self');
+    const other = C.renderSubject(C.Q[i].q, 'Ada', 'other');
+    assert.doesNotMatch(self + other, /\{(they|their)\}/i, `Q${i} leaves no token`);
+    assert.doesNotMatch(other, /\byou'?s\b/i, `Q${i} has no broken "you's"`);
+    assert.doesNotMatch(other, /Ada's's/, `Q${i} has no double possessive`);
+    assert.match(other, /Ada/, `Q${i} names the creator for recipients`);
+    assert.match(self.toLowerCase(), /\byou\b|\byour\b/, `Q${i} addresses the creator in self mode`);
+  }
+});
+
+test('BACK-COMPAT: existing v1 links still decode; questions render by the creator name; scoring unchanged', async () => {
+  const token = C.encodeChallenge({ owner_name: 'Shege', title: 'How well do you know Shege?', answers: VALID_ANSWERS });
+  const ch = await C.decodeChallenge(token);          // old link still works
+  assert.equal(ch.template_version, 1);
+  const recipientQ = C.renderSubject(C.Q[0].q, ch.owner_name, 'other');
+  assert.match(recipientQ, /Shege/);                  // recipient sees the creator's name
+  assert.ok(!('questions' in ch));                    // v1 questions come from built-in Q
+  assert.equal(C.scoreQuiz(VALID_ANSWERS, ch.answers), C.QUESTION_COUNT); // scoring by index unchanged
 });
 
 test('scoreQuiz counts exact matches', () => {

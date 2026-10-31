@@ -2,8 +2,10 @@
 
 A working, lightweight entertainment website for Nigerian young adults. Includes:
 
-- **Predict My Wahala**: seven funny questions, answer-key creation, shareable friend challenge link, scoring and a replay/share loop.
+- **Predict My Wahala** (Quick Challenge): seven preset questions, answer-key creation, shareable friend challenge link, scoring and a replay/share loop.
+- **Create Your Own Wahala**: author your own 3–10 questions with 2–4 options each, mark your intended answers, preview, then generate a shareable guest link (gzip-compressed, no account/backend). Friends guess your answers; result shows a Nigerian-flavoured friendship verdict. Existing Quick Challenge links stay compatible.
 - **Survive Naija**: a four-round salary-and-life-decisions mini-game, with financial, peace-of-mind and street-cred stats.
+- **Assume Their Life**: a causal life-simulation where you assume a role, make decisions over a year, and live with the consequences. Pick a life from the role picker — **Founder Life** ("Zero to One" — a Lagos startup: formation, fundraising, a real **cap table** with dilution and liquidation preferences, PMF, hiring, scaling), **CEO Life** ("Corner Office" — a hired boss of an existing company: a **board that can remove you**, activists, operating performance, acquisitions), **Billionaire Life** ("Paper & Power" — a holdings **portfolio**, paper **net worth vs liquid cash**, leverage and margin calls, family, influence), **Political Leadership** ("The Mandate" — a governor: a fixed public **budget**, a **legislature** that must pass your bills, and state **capacity** that decides whether a passed law is actually implemented), and **Afrobeats** ("Breakout Year" — fame, credibility, fanbase, as an additional role). A role-agnostic engine (`atl-engine.js`) + shared sub-systems (`atl-systems.js`: cap table, portfolio, board & legislative votes) + per-role packs (`atl-pack-*.js`). Each role has its own interacting meters, stakeholder memory, time progression, delayed consequences that trace back to earlier choices, and an explainable end-of-year Reckoning. **Not** a quiz — decisions are actions with trade-offs.
 - **My corner**: recent activities, account state and cloud-saved challenges.
 - **Guest mode**: runs with no backend, stores recent activity on that device via `localStorage`, and shares challenges as URL-encoded data.
 - **Optional real accounts**: Supabase Auth email magic links with display name and verified email; Supabase PostgreSQL for profile, challenge and activity storage.
@@ -33,10 +35,10 @@ npm install
 npm run test:e2e:install     # downloads Chromium for Playwright
 
 # Fast unit tests (Node built-in runner, no browser)
-npm run test:unit            # -> 28 tests: core logic + account state machine (mocked backend)
+npm run test:unit            # -> 114 tests: core + account + CYOW + Assume Their Life engine/systems/5 role packs
 
 # End-to-end browser smoke tests (Playwright; serves the site itself)
-npm run test:e2e             # -> 22 checks across Desktop Chrome + Pixel 7 viewports
+npm run test:e2e             # -> 64 checks across Desktop Chrome + Pixel 7 viewports
 
 # Everything
 npm test
@@ -49,7 +51,12 @@ validation (short name, unanswered questions); malformed guest links and cloud (
 links with no backend; phone viewport (bottom nav shows, no horizontal overflow, auth
 dialog focus). The unit suite also covers the account state machine (`account.js`) with a mocked,
 deferred-promise Supabase client: delayed profile responses, account switching, sign-out, failed
-refreshes, and cross-session guest data. Last run (2026-10-28): **28/28 unit, 22/22 E2E passing (50 total).**
+refreshes, and cross-session guest data. The Assume Their Life suite covers deterministic state
+transitions, delayed consequences that fire later and trace back, commitment enforcement at the
+horizon, divergent outcomes from different early choices, player agency (declining paths), and the
+Reckoning explanation. The Founder Life pack adds cap-table dilution and liquidation-preference
+tests (a "sold the company" exit can still leave the founder with almost nothing). Last run
+(2026-10-30, integrated build): **114/114 unit, 64/64 E2E passing (178 total).**
 
 **Untested paths (require live Supabase — Milestone 2):** email magic-link sign-in,
 cloud challenge storage/retrieval, real activity upload/RLS, and profile creation.
@@ -95,7 +102,7 @@ Supabase Auth stores account email separately. Guest links encode the quiz answe
 - The game score is calculated by the browser; do not use it for monetary prizes, lotteries or anything security-sensitive.
 - Add an authorized `og:image` and proper favicon for better social sharing previews when deployed. Meta title/description are included already.
 - Add responsible, opt-in analytics **after** putting a privacy notice and consent controls in place where required; the current MVP uses no third-party analytics tracker.
-- Review CDN dependencies: the interface optionally loads the Supabase JS library from `esm.sh` when credentials are configured, and uses Google Fonts for typography. Self-host dependencies if you want to minimize third-party network requests.
+- CDN dependencies: fonts are now **self-hosted** (`fonts/`), so no request goes to Google. The Supabase JS library still loads from `esm.sh` **only when cloud credentials are configured** (not in guest/production); before enabling cloud in production, **bundle it and pin an exact version** rather than relying on SRI for dynamic imports. Security headers (incl. a CSP) are set in `vercel.json`.
 
 ## 6. Files
 
