@@ -25,3 +25,7 @@ h1,h2,h3,p{margin-top:0}h1,h2,h3{font-family:'Space Grotesk',sans-serif;letter-s
 .atl-brief b{color:var(--white)}
 .atl-note{font-size:13px;color:var(--muted);line-height:1.5;margin:16px 0 18px;padding:12px 14px;border-radius:12px;border:1px dashed var(--line)}
 @media(max-width:560px){.atl-dash{grid-template-columns:1fr 1fr;gap:9px 12px}}
+
+/* Brand logo in the header (full mascot lockup, kept compact) */
+.logo-img{height:40px;width:auto;display:block}
+@media(max-width:560px){.logo-img{height:34px}}
