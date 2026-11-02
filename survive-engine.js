@@ -125,8 +125,11 @@
   }
   function pushEvent(run, ev) {
     run.counters['ev_' + ev.id] = (run.counters['ev_' + ev.id] || 0) + 1;
-    run.today.events.push({ id: ev.id, title: ev.title, body: ev.body, mandatory: !!ev.mandatory, resolved: false, _ref: ev });
+    // Store plain data only (no function refs) so a run is fully JSON-serialisable for
+    // save/resume; the live event definition is looked up from the pack deck by id.
+    run.today.events.push({ id: ev.id, title: ev.title, body: ev.body, mandatory: !!ev.mandatory, resolved: false });
   }
+  const eventDef = (pack, id) => pack.deck.find((e) => e.id === id);
 
   // All tappable options for the current day: unresolved event choices, standing actions,
   // and NPC "calls" — each with an AP + resource cost and an availability reason.
@@ -136,7 +139,8 @@
     const out = [];
     for (const ev of run.today.events) {
       if (ev.resolved) continue;
-      for (const c of ev._ref.choices) {
+      const def = eventDef(pack, ev.id); if (!def) continue;
+      for (const c of def.choices) {
         if (c.show && !c.show(run, ctx)) continue;
         out.push(decorate(run, 'ev:' + ev.id + ':' + c.id, c, 'event', ev.title));
       }
@@ -169,7 +173,8 @@
     const parts = optionId.split(':');
     if (parts[0] === 'ev') {
       const ev = run.today.events.find((e) => e.id === parts[1] && !e.resolved);
-      const c = ev && ev._ref.choices.find((x) => x.id === parts[2]);
+      const def = ev && eventDef(pack, ev.id);
+      const c = def && def.choices.find((x) => x.id === parts[2]);
       return c ? { def: c, ev } : null;
     }
     if (parts[0] === 'act') { const a = pack.actions.find((x) => x.id === parts[1]); return a ? { def: a } : null; }
@@ -210,7 +215,8 @@
       if (s.effects) for (const k of Object.keys(s.effects)) applyDelta(run, k, s.effects[k]);
       if (s.npc) for (const id of Object.keys(s.npc)) ctx.npc(id, s.npc[id]);
       if (s.sets) Object.assign(run.flags, s.sets);
-      if (s.apply) s.apply(run, ctx);
+      if (s.apply) s.apply(run, ctx);                                  // inline (same-session only)
+      if (s.handler && pack.seedHandlers && pack.seedHandlers[s.handler]) pack.seedHandlers[s.handler](run, ctx); // serialisable
       s.status = 'fired'; s.firedDay = uptoDay;
       run.fired.push(s);
     }

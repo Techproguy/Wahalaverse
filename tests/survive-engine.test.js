@@ -137,6 +137,21 @@ test('Reckoning explains the week (indicators, people, traced surprises, outcome
   if (rec.surprises.length) assert.ok(rec.surprises.every((s) => s.note && s.cause));
 });
 
+test('SAVE/RESUME: a run survives JSON round-trip (pure data) and continues identically', () => {
+  // play a few moves, serialise mid-run, then finish both copies with the same policy.
+  const live = E.createRun(PACK, { seed: 6 });
+  for (let i = 0; i < 6 && !live.ended; i++) {
+    const o = E.options(PACK, live).filter((x) => !x.disabled);
+    const pick = greedy(live, o); if (pick) E.choose(PACK, live, pick.id); else E.endDay(PACK, live);
+  }
+  const saved = JSON.parse(JSON.stringify(live)); // what localStorage would store
+  assert.ok(!/function/.test(JSON.stringify(live)), 'no functions leak into the serialised run');
+  const finish = (run) => { let g = 0; while (!run.ended && g++ < 400) { const o = E.options(PACK, run).filter((x) => !x.disabled); const p = greedy(run, o); if (p) E.choose(PACK, run, p.id); else E.endDay(PACK, run); } return run; };
+  const a = finish(live), b = finish(saved);
+  assert.deepEqual(a.res, b.res);
+  assert.equal(a.outcome.id, b.outcome.id); // resumed run behaves exactly like the live one
+});
+
 test('ENDING SPREAD: greedy across seeds yields more than one outcome', () => {
   const outs = new Set();
   for (let s = 1; s <= 10; s++) outs.add(play(s, greedy).run.outcome.id);

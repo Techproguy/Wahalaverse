@@ -83,7 +83,7 @@
         apply: (r, c) => { c.add('wellbeing', 6); c.npc('mummy', 2); c.react('Her voice alone is medicine.'); } },
       { id: 'chidi_borrow', npc: 'chidi', group: 'call', cost: { ap: 1 },
         label: 'Borrow ₦5,000 from Chidi', available: (r) => !r.flags.borrowedChidi && (r.npcs.chidi.goodwill >= -2),
-        apply: (r, c) => { c.add('cash', 5000); c.npc('chidi', -1); c.flag('borrowedChidi'); c.seed({ id: 'chidi_repay', fireDay: r.day + 3, apply: (rr, cc) => { if (cc.get('cash') >= 5000) { cc.add('cash', -5000); cc.npc('chidi', 1); } else { cc.npc('chidi', -2); } }, note: 'Chidi needed his ₦5,000 back — you were reminded.', cause: 'borrowing from Chidi' }); c.react('Chidi borrowed you ₦5,000. “No vex, but I go need am back o.”'); } },
+        apply: (r, c) => { c.add('cash', 5000); c.npc('chidi', -1); c.flag('borrowedChidi'); c.seed({ id: 'chidi_repay', fireDay: r.day + 3, handler: 'chidi_repay', note: 'Chidi needed his ₦5,000 back — you were reminded.', cause: 'borrowing from Chidi' }); c.react('Chidi borrowed you ₦5,000. “No vex, but I go need am back o.”'); } },
       { id: 'chidi_hang', npc: 'chidi', group: 'call', cost: { ap: 1, cash: 1500 },
         label: 'Link up with Chidi (₦1,500)', available: () => true,
         apply: (r, c) => { c.add('wellbeing', 8); c.npc('chidi', 2); c.react('Small chops and gist. Your head is lighter.'); } },
@@ -95,7 +95,7 @@
         apply: (r, c) => { if (c.npcGoodwill('oga') >= 0 || r.res.livelihood >= 45) { r.flags.jobQuery = false; c.add('livelihood', 6); c.react('You explained; Oga let it slide this time.'); } else { c.add('livelihood', -3); c.react('Oga wasn’t having it. Shape up.'); } } },
       { id: 'mama_credit', npc: 'mama', group: 'call', cost: { ap: 1 },
         label: 'Buy food on credit from Mama Nkechi', available: (r) => !r.flags.mamaCredit && (r.npcs.mama.goodwill >= -1),
-        apply: (r, c) => { c.add('food', 4); c.flag('mamaCredit'); c.npc('mama', -1); c.seed({ id: 'mama_due', fireDay: r.day + 3, apply: (rr, cc) => { if (cc.get('cash') >= 3500) { cc.add('cash', -3500); cc.npc('mama', 1); } else { cc.npc('mama', -2); } }, note: 'Mama Nkechi came for her ₦3,500 food credit.', cause: 'buying food on credit' }); c.react('“Oya take, pay me later.” 4 meals on credit.'); } },
+        apply: (r, c) => { c.add('food', 4); c.flag('mamaCredit'); c.npc('mama', -1); c.seed({ id: 'mama_due', fireDay: r.day + 3, handler: 'mama_due', note: 'Mama Nkechi came for her ₦3,500 food credit.', cause: 'buying food on credit' }); c.react('“Oya take, pay me later.” 4 meals on credit.'); } },
       { id: 'mama_greet', npc: 'mama', group: 'call', cost: { ap: 1 },
         label: 'Greet Mama Nkechi properly', available: () => true,
         apply: (r, c) => { c.add('wellbeing', 3); c.npc('mama', 2); c.react('A little respect goes far in this market.'); } },
@@ -183,6 +183,13 @@
         if (m >= 2 && !r.flags.jobQuery) { r.flags.jobQuery = true; night.notes.push('Oga is asking why you keep missing work.'); }
       }
       r.flags.skipWorkToday = false;
+    },
+
+    // Serialisable delayed-consequence handlers (referenced by seed.handler id) — keeps a
+    // run pure-data so it can be saved/resumed from localStorage.
+    seedHandlers: {
+      chidi_repay: (r, c) => { if (c.get('cash') >= 5000) { c.add('cash', -5000); c.npc('chidi', 1); } else { c.npc('chidi', -2); } },
+      mama_due: (r, c) => { if (c.get('cash') >= 3500) { c.add('cash', -3500); c.npc('mama', 1); } else { c.npc('mama', -2); } },
     },
 
     onPayday: (r, c) => {
