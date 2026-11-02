@@ -21,13 +21,18 @@ test('phone viewport: no horizontal overflow on key pages', async ({ page }) => 
   }
 });
 
-test('phone viewport: auth dialog moves focus to the dialog', async ({ page }) => {
+test('phone viewport: guest build keeps registration inaccessible (no auth dialog)', async ({ page }) => {
+  // In the guest (no-backend) release, account/registration is intentionally not exposed:
+  // there is no "auth" entry point, and the account page is the guest "My corner".
   await page.goto('/?page=account');
-  // On account page as a guest, the sign-in button is disabled when cloud is
-  // not configured, so open the dialog via the header CTA instead.
-  await page.locator('[data-action="auth"]').first().click();
-  await expect(page.locator('.dialog')).toBeVisible();
-  // Focus should be inside the dialog (trap/initial focus).
-  const focusInDialog = await page.evaluate(() => !!document.activeElement?.closest('.dialog'));
-  expect(focusInDialog).toBe(true);
+  await expect(page.locator('[data-action="auth"]')).toHaveCount(0);
+  await expect(page.locator('.dialog')).toHaveCount(0);
+  // The "Me" tab still reaches the guest corner.
+  await page.goto('/');
+  const welcome = page.getByRole('button', { name: /Let.s go/ });
+  if (await welcome.count()) await welcome.click();
+  await page.locator('.bottom-nav [data-action="nav"][data-page="account"]').click();
+  await expect(page).toHaveURL(/page=account/);
+  const body = (await page.locator('body').innerText()).toLowerCase();
+  expect(body).toContain('guest');
 });
