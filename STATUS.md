@@ -1,6 +1,19 @@
 # WahalaVerse — STATUS
 
-_Last updated: 2026-10-28 (Milestone 1 branch `milestone-1-reliability`)_
+_Last updated: 2026-11-02 (branch `survive-naija-2`, off integrated guest build)_
+
+## 🔥 Survive Naija 2.0 + onboarding (branch `survive-naija-2`, NOT pushed/deployed)
+- **Seeded survival engine** (`survive-engine.js`) + **3 scenarios**: 7 Days to Payday
+  (fully tuned), 7 Days of Hustle (Beta), Campus Survival (Beta). Real resource quantities,
+  wellbeing/safety/livelihood meters, derived social support, delayed consequences, setbacks
+  + recovery, multiple endings + Reckoning. **Device-local save/resume** (`wv_sn2_run`).
+- **Guest-first onboarding**: dismissible first-visit welcome, mobile Games picker (all
+  categories one tap away). No registration surface added; original Survive Naija preserved.
+- **Tests**: 129 unit (incl. 9-gate acceptance evidence), 71 E2E (1 desktop-only skip) — all green.
+- **Awaiting**: founder acceptance, then authorization to push/deploy. See `REVIEW_NOTES.md`.
+
+---
+
 
 This file tracks what actually works, what is pending, and what is blocking — verified by
 reading and exercising the code, not by assuming placeholders are complete.
