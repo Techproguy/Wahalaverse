@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 test('navigation + popstate (browser back/forward) works', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: /Let.s go/ }).click(); // dismiss first-visit welcome
   await expect(page.locator('h1')).toContainText('Catch cruise');
 
   // Navigate into "Make a challenge" via an in-app CTA.

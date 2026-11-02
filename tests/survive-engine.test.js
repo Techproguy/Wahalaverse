@@ -152,6 +152,17 @@ test('SAVE/RESUME: a run survives JSON round-trip (pure data) and continues iden
   assert.equal(a.outcome.id, b.outcome.id); // resumed run behaves exactly like the live one
 });
 
+test('BETA scenarios (Hustle, Campus) run on the same engine to a reproducible ending', () => {
+  for (const pf of ['../survive-pack-hustle.js', '../survive-pack-campus.js']) {
+    const P = require(pf);
+    const run = (seed) => { const r = E.createRun(P, { seed }); let g = 0; while (!r.ended && g++ < 400) { const o = E.options(P, r).filter((x) => !x.disabled); const m = r.today.events.find((ev) => ev.mandatory && !ev.resolved); const p = (m && o.find((x) => x.id.indexOf('ev:' + m.id + ':') === 0)) || o.find((x) => x.id.startsWith('act:')) || o.find((x) => x.id.startsWith('ev:')); if (p) E.choose(P, r, p.id); else E.endDay(P, r); } return r; };
+    const a = run(5), b = run(5);
+    assert.ok(a.ended && a.outcome && a.outcome.title, P.title + ' reaches an ending');
+    assert.equal(a.outcome.id, b.outcome.id); // reproducible
+    assert.equal(a.res.cash, b.res.cash);
+  }
+});
+
 test('ENDING SPREAD: greedy across seeds yields more than one outcome', () => {
   const outs = new Set();
   for (let s = 1; s <= 10; s++) outs.add(play(s, greedy).run.outcome.id);
