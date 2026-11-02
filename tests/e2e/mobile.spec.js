@@ -21,18 +21,21 @@ test('phone viewport: no horizontal overflow on key pages', async ({ page }) => 
   }
 });
 
-test('phone viewport: guest build keeps registration inaccessible (no auth dialog)', async ({ page }) => {
-  // In the guest (no-backend) release, account/registration is intentionally not exposed:
-  // there is no "auth" entry point, and the account page is the guest "My corner".
-  await page.goto('/?page=account');
-  await expect(page.locator('[data-action="auth"]')).toHaveCount(0);
-  await expect(page.locator('.dialog')).toHaveCount(0);
-  // The "Me" tab still reaches the guest corner.
+test('phone viewport: optional account onboarding opens, collects nothing, and focus moves into it', async ({ page }) => {
+  // Guest-first: accounts are offered (not removed), but the guest build collects no
+  // credentials — the onboarding sheet just explains guest play + accounts coming soon.
   await page.goto('/');
   const welcome = page.getByRole('button', { name: /Let.s go/ });
   if (await welcome.count()) await welcome.click();
-  await page.locator('.bottom-nav [data-action="nav"][data-page="account"]').click();
-  await expect(page).toHaveURL(/page=account/);
-  const body = (await page.locator('body').innerText()).toLowerCase();
-  expect(body).toContain('guest');
+  await page.locator('header [data-action="auth"]').click();
+  await expect(page.locator('.dialog')).toBeVisible();
+  // focus should land inside the dialog (a11y)
+  const focusInDialog = await page.evaluate(() => !!document.activeElement?.closest('.dialog'));
+  expect(focusInDialog).toBe(true);
+  // no credential inputs in the guest build
+  await expect(page.locator('#auth-form')).toHaveCount(0);
+  await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+  // continue as guest dismisses it
+  await page.getByRole('button', { name: /Continue as guest/i }).click();
+  await expect(page.locator('.dialog')).toHaveCount(0);
 });

@@ -2,6 +2,22 @@ const { test, expect } = require('@playwright/test');
 
 // Survive Naija 2.0 — full week to Reckoning + device-local save/resume (guest mode).
 
+test('Survive Naija 2.0 is prominent: top nav (desktop), first playground card, direct route', async ({ page, viewport }) => {
+  await page.goto('/');
+  const welcome = page.getByRole('button', { name: /Let.s go/ });
+  if (await welcome.count()) await welcome.click();
+  // first playground card links to survive2
+  const firstCard = page.locator('.cards .experience').first();
+  await expect(firstCard.locator('[data-action="nav"][data-page="survive2"]')).toHaveCount(1);
+  // desktop top nav has a direct Survive 2.0 link
+  if ((viewport?.width ?? 1280) > 700) {
+    await expect(page.locator('nav.toplinks [data-page="survive2"]')).toBeVisible();
+  }
+  // direct route works
+  await page.goto('/?page=survive2');
+  await expect(page.locator('[data-action="surv-pick"]')).toHaveCount(3);
+});
+
 test('plays a full 7-day run to an explainable Reckoning', async ({ page }) => {
   await page.goto('/?page=survive2');
   await page.locator('[data-action="surv-pick"][data-scenario="payday"]').click();

@@ -20,18 +20,26 @@ for (const pg of PAGES) {
   });
 }
 
-test('guest build has no account/registration entry point, and "auth" routes to the guest corner', async ({ page }) => {
+test('guest build offers an OPTIONAL account onboarding — honest copy, no credential form, no demo wording', async ({ page }) => {
   await page.goto('/');
   const welcome = page.getByRole('button', { name: /Let.s go/ });
   if (await welcome.count()) await welcome.click();
-  // no "Join the cruise" CTA in the no-backend guest build
-  await expect(page.getByText('Join the cruise', { exact: false })).toHaveCount(0);
-  // the account page is the guest "My corner" — no sign-in form/button, honest copy
+  // Accounts are not removed: a login entry exists and opens the onboarding sheet.
+  await page.locator('header [data-action="auth"]').click();
+  await expect(page.locator('.dialog')).toBeVisible();
+  const dlg = (await page.locator('.dialog').innerText()).toLowerCase();
+  expect(dlg).toContain('continue as guest');
+  expect(dlg).toContain('coming soon');          // optional accounts framed honestly
+  expect(dlg).not.toContain('demo mode');
+  expect(dlg).not.toContain('supabase');
+  // but NO credential collection happens in the guest (no-backend) build:
+  await expect(page.locator('#auth-form')).toHaveCount(0);
+  await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+  // the account page explains guest + device-local saves
   await page.goto('/?page=account');
   const body = (await page.locator('body').innerText()).toLowerCase();
   expect(body).toContain('guest');
   expect(body).toContain('this device');
-  await expect(page.locator('[data-action="auth"]')).toHaveCount(0); // no way to open registration
 });
 
 test('guest can still play Survive Naija 2.0 with no sign-up, and it states device-local saves', async ({ page }) => {
