@@ -21,7 +21,7 @@ test('mobile games picker surfaces ALL categories (incl. Assume a life + Survive
   test.skip((viewport?.width ?? 1280) > 700, 'bottom-nav games picker is a mobile-only aid (desktop uses the top nav + home cards)');
   await page.goto('/');
   await page.getByRole('button', { name: /Let.s go/ }).click();
-  await page.locator('[data-action="games-sheet"]').click();
+  await page.locator('.bottom-nav [data-action="games-sheet"]').click();
   const sheet = page.locator('.dialog-backdrop');
   for (const pg of ['create', 'create-custom', 'survive2', 'sim', 'atl']) {
     await expect(sheet.locator(`[data-action="nav"][data-page="${pg}"]`)).toBeVisible();

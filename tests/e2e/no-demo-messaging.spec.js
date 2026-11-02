@@ -20,26 +20,27 @@ for (const pg of PAGES) {
   });
 }
 
-test('guest build offers an OPTIONAL account onboarding — honest copy, no credential form, no demo wording', async ({ page }) => {
+test('guest build: no fake login; account access labelled "coming soon"; direct guest access works', async ({ page }) => {
   await page.goto('/');
   const welcome = page.getByRole('button', { name: /Let.s go/ });
   if (await welcome.count()) await welcome.click();
-  // Accounts are not removed: a login entry exists and opens the onboarding sheet.
-  await page.locator('header [data-action="auth"]').click();
-  await expect(page.locator('.dialog')).toBeVisible();
-  const dlg = (await page.locator('.dialog').innerText()).toLowerCase();
-  expect(dlg).toContain('continue as guest');
-  expect(dlg).toContain('coming soon');          // optional accounts framed honestly
-  expect(dlg).not.toContain('demo mode');
-  expect(dlg).not.toContain('supabase');
-  // but NO credential collection happens in the guest (no-backend) build:
-  await expect(page.locator('#auth-form')).toHaveCount(0);
-  await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
-  // the account page explains guest + device-local saves
+  // No functional-looking login in the guest build (nothing triggers the auth/onboarding modal).
+  await expect(page.locator('[data-action="auth"]')).toHaveCount(0);
+  // Direct guest access: the header Play CTA opens the games picker with every game.
+  await page.locator('header [data-action="games-sheet"]').click();
+  await expect(page.locator('.dialog [data-action="nav"][data-page="survive2"]')).toBeVisible();
+  await expect(page.locator('.dialog [data-action="nav"][data-page="atl"]')).toBeVisible();
+  // Account page: accounts are clearly "coming soon" (disabled, not a fake login), honest copy,
+  // and NO credential collection anywhere in the guest build.
   await page.goto('/?page=account');
   const body = (await page.locator('body').innerText()).toLowerCase();
-  expect(body).toContain('guest');
+  expect(body).toContain('coming soon');
   expect(body).toContain('this device');
+  expect(body).not.toContain('demo mode');
+  expect(body).not.toContain('supabase');
+  await expect(page.locator('#auth-form')).toHaveCount(0);
+  await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="auth"]')).toHaveCount(0);
 });
 
 test('guest can still play Survive Naija 2.0 with no sign-up, and it states device-local saves', async ({ page }) => {

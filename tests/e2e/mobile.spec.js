@@ -21,21 +21,21 @@ test('phone viewport: no horizontal overflow on key pages', async ({ page }) => 
   }
 });
 
-test('phone viewport: optional account onboarding opens, collects nothing, and focus moves into it', async ({ page }) => {
-  // Guest-first: accounts are offered (not removed), but the guest build collects no
-  // credentials — the onboarding sheet just explains guest play + accounts coming soon.
+test('phone viewport: direct guest access via Play picker (Survive 2.0 first); no fake login, no credentials', async ({ page }) => {
   await page.goto('/');
   const welcome = page.getByRole('button', { name: /Let.s go/ });
   if (await welcome.count()) await welcome.click();
-  await page.locator('header [data-action="auth"]').click();
+  // no functional-looking login in the guest build
+  await expect(page.locator('[data-action="auth"]')).toHaveCount(0);
+  // Play CTA opens the games picker; Survive 2.0 is first
+  await page.locator('header [data-action="games-sheet"]').click();
   await expect(page.locator('.dialog')).toBeVisible();
-  // focus should land inside the dialog (a11y)
-  const focusInDialog = await page.evaluate(() => !!document.activeElement?.closest('.dialog'));
-  expect(focusInDialog).toBe(true);
-  // no credential inputs in the guest build
-  await expect(page.locator('#auth-form')).toHaveCount(0);
+  const firstGame = page.locator('.dialog [data-action="nav"]').first();
+  await expect(firstGame).toHaveAttribute('data-page', 'survive2');
+  await firstGame.click();
+  await expect(page).toHaveURL(/page=survive2/);
+  // account page: coming soon, no credential inputs
+  await page.goto('/?page=account');
   await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
-  // continue as guest dismisses it
-  await page.getByRole('button', { name: /Continue as guest/i }).click();
-  await expect(page.locator('.dialog')).toHaveCount(0);
+  expect((await page.locator('body').innerText()).toLowerCase()).toContain('coming soon');
 });
