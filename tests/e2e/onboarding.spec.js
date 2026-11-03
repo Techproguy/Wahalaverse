@@ -8,6 +8,7 @@ test('first-visit welcome shows once, is skippable, and never blocks play', asyn
   const welcome = page.getByRole('button', { name: /Let.s go/ });
   await expect(welcome).toBeVisible();
   await expect(page.getByText(/no download, no sign-up/i)).toBeVisible(); // guest-first, no registration ask
+  await expect(page.getByText(/18 or older/i)).toBeVisible(); // lightweight 18+ acknowledgement on first visit
   await welcome.click();
   await expect(welcome).toHaveCount(0);
 

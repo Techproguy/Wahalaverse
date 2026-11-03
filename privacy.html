@@ -1,1 +1,124 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Privacy & data — WahalaVerse</title><link rel="stylesheet" href="styles.css"></head><body><main class="shell page" style="max-width:780px"><a href="index.html" class="logo" style="margin-bottom:40px"><span class="logo-icon">⚡</span>Wahala<em>Verse.</em></a><span class="pill hot">Pre-launch draft — complete before public release</span><h1 style="font-size:45px;margin:25px 0">Privacy & your data</h1><p>This page describes the intended data handling for the WahalaVerse MVP. It is a draft. Before collecting real user registrations, the website operator must add their legal identity, a contact email, retention periods, and a procedure to respond to data requests.</p><div class="panel"><h2>What is collected?</h2><p>If you choose to sign in: display name and email address. For signed-in users, challenges created and completed game activities (game name, score or simulated outcome, and timestamp). We do not need your phone number, address, contacts, date of birth, or passwords.</p><h2>What guests can do</h2><p>You may try games without signing in. Recent guest activity may be stored only in the local storage of your current browser. A guest challenge link includes the name and quiz choices selected by its creator so others can play. Anyone with the link may be able to inspect those encoded choices.</p><h2>How information is used</h2><p>To authenticate your account, label challenges, store your activities, and let you see your saved history. Email is not added to a marketing list. Challenge creators' chosen display names and challenge content are visible to people with the link. Account email addresses and individual activity histories are not intentionally made public.</p><h2>Where information lives</h2><p>Cloud mode uses Supabase Auth and PostgreSQL with row-level security; browser guest mode uses local storage. The operator must identify the actual hosting regions and processors used before launch.</p><h2>Your choices</h2><p>You may play as a guest, sign out, or clear local guest records through browser storage settings. Account deletion/export workflows have not yet been implemented, so public sign-ups should not be enabled before a contact method and request process are available.</p><h2>Children's data</h2><p>Account registration in this initial beta is intended for people aged 18 and over. The operator must review age controls and relevant Nigerian privacy requirements before general release.</p><h2>Operator contact and retention</h2><p><strong>Operator:</strong> [To be completed before launch]<br><strong>Privacy contact:</strong> [To be completed before launch]<br><strong>Retention periods:</strong> [To be completed before launch]</p></div><p><a href="index.html" style="color:var(--lime)">← Back to the playground</a></p></main></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy &amp; data — WahalaVerse</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="shell page" style="max-width:780px">
+  <a href="index.html" class="logo" style="margin-bottom:32px"><span class="logo-icon">⚡</span>Wahala<em>Verse.</em></a>
+
+  <span class="pill">Public beta • Guest-only</span>
+  <h1 style="font-size:44px;margin:18px 0 6px">Privacy &amp; your data</h1>
+  <p style="color:var(--muted);margin:0 0 22px"><strong>Effective date:</strong> 3 November 2026</p>
+
+  <p>This notice explains how <strong>WahalaVerse</strong> handles information during its
+  <strong>public beta</strong>. The beta is <strong>guest-only</strong>: you can play everything
+  without an account. There is no login, no password, and no cloud profile in this release.</p>
+
+  <div class="panel">
+    <h2>1. Who runs WahalaVerse</h2>
+    <p><strong>Operator:</strong> Mercy Moyinoluwa Adepoju, trading as <strong>Technoestro
+    Solutions</strong>, Nigeria.<br>
+    <strong>Privacy contact:</strong> <a href="mailto:info@technoestro.com">info@technoestro.com</a></p>
+    <p>For any question or request about your data, email the address above. We respond to
+    reasonable requests about the limited data described here.</p>
+
+    <h2>2. Who the beta is for (18+)</h2>
+    <p>WahalaVerse is intended for people <strong>aged 18 and over</strong>. It contains Nigerian
+    adult social humour. When you first open the site you're asked to confirm you're 18 or older;
+    by continuing you confirm this. If you are under 18, please do not use WahalaVerse. This is a
+    lightweight self-confirmation for the beta, not verified age checking.</p>
+
+    <h2>3. The short version</h2>
+    <ul>
+      <li>You play as a <strong>guest</strong> — no name, email, password, phone number, address,
+      date of birth or contacts are requested or required.</li>
+      <li>Your game progress and drafts are saved <strong>only in your own browser</strong> on
+      your own device. We cannot read them.</li>
+      <li>Our hosting provider (<strong>Vercel</strong>) processes your request to serve the site
+      and keeps standard technical logs.</li>
+      <li>A <strong>challenge link you share</strong> contains the choices you put into it, so
+      anyone with the link can see them.</li>
+    </ul>
+
+    <h2>4. What stays on your device (browser-local)</h2>
+    <p>As you play, some information is stored in your browser's <code>localStorage</code> on the
+    device you're using. This stays on your device, is not sent to us, and we cannot read it:</p>
+    <ul>
+      <li>Recent in-game activity on this device (<code>wv_activity</code>).</li>
+      <li>An in-progress "Create Your Own Wahala" draft (<code>wv_cc_draft</code>).</li>
+      <li>An in-progress "Survive Naija 2.0" game, so you can resume it (<code>wv_sn2_run</code>).</li>
+      <li>Small preferences — e.g. your 18+ acknowledgement and whether you've seen the welcome
+      screen (<code>wv_age_ack</code>, <code>wv_intro_*</code>, <code>wv_pending_name</code>).</li>
+    </ul>
+
+    <h2>5. What our host (Vercel) processes</h2>
+    <p>The site is hosted on <strong>Vercel</strong>. To deliver the pages, Vercel processes your
+    network request — including your <strong>IP address</strong>, device/browser user-agent, and
+    the pages requested — and keeps standard <strong>access and security logs</strong>. This is
+    ordinary technical processing needed to run any website and to protect it from abuse. Vercel
+    acts as our hosting processor under its own data-processing terms.</p>
+
+    <h2>6. Information inside shared challenge links</h2>
+    <p>When you create and share a "Predict My Wahala" or "Create Your Own Wahala" challenge, the
+    details you entered — such as the <strong>display name you chose</strong> and the
+    <strong>questions and answer choices</strong> you selected — are <strong>encoded into the link
+    itself</strong>. Anyone who has the link can open it and inspect those encoded details. So:</p>
+    <ul>
+      <li>Only put into a challenge what you're comfortable sharing with whoever gets the link.</li>
+      <li>Don't use the display-name field for sensitive personal information.</li>
+      <li>Because answers are visible in the link, challenges are for fun and are
+      <strong>not suitable for prizes, confidential information, or scoring you can't verify</strong>.</li>
+    </ul>
+
+    <h2>7. How long information is kept</h2>
+    <ul>
+      <li><strong>On your device:</strong> browser-local data (section 4) stays until it's cleared
+      — by the game's own controls (for example, finishing, replaying or abandoning a run), or by
+      you clearing your browser's site data. We set no server-side deletion period because we never
+      receive this data.</li>
+      <li><strong>Provider logs:</strong> Vercel's standard access/security logs are retained for a
+      short, limited period set by Vercel's platform for our plan (by default on the order of about
+      one hour up to a few days, with longer retention only if specifically enabled). These logs are
+      managed by Vercel under its own terms; we do not individually control their contents or
+      configure a custom period, so we don't state a fixed figure of our own.</li>
+    </ul>
+
+    <h2>8. Deletion and its limits</h2>
+    <p>You can remove device-local data yourself at any time (section 7), or use your browser's
+    private/incognito mode so nothing is retained after you close it. Please note:</p>
+    <ul>
+      <li>We cannot delete or reach into Vercel's provider-managed logs on your behalf; their
+      retention is handled by Vercel as above.</li>
+      <li>Once you share a challenge link, <strong>we cannot recall or delete copies</strong> that
+      other people already have, saved or forwarded — the information is in the link they hold.</li>
+    </ul>
+
+    <h2>9. Accounts and cloud saving (not in this beta)</h2>
+    <p>This beta does <strong>not</strong> offer accounts. There is no sign-in, no email login, no
+    password, and <strong>no cross-device cloud saving</strong> — your progress lives only in the
+    browser you played in. Account sign-in, data export and account deletion are
+    <strong>planned for a future release and are not available now</strong>. We will update this
+    notice before any such feature is enabled.</p>
+
+    <h2>10. Your choices</h2>
+    <ul>
+      <li>Play entirely as a guest.</li>
+      <li>Clear your WahalaVerse browser storage at any time (your browser's site-data settings).</li>
+      <li>Use private/incognito mode so nothing is retained on the device after you close it.</li>
+      <li>Email <a href="mailto:info@technoestro.com">info@technoestro.com</a> with any data question.</li>
+    </ul>
+
+    <h2>11. Changes to this notice</h2>
+    <p>If we change how the beta handles information, we'll update this page and its effective date.
+    Material changes (for example, enabling accounts) will be reflected here before they take
+    effect.</p>
+  </div>
+
+  <p style="margin-top:22px"><a href="index.html" style="color:var(--lime)">← Back to the playground</a></p>
+</main>
+</body>
+</html>
