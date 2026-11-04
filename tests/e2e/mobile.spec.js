@@ -21,13 +21,21 @@ test('phone viewport: no horizontal overflow on key pages', async ({ page }) => 
   }
 });
 
-test('phone viewport: auth dialog moves focus to the dialog', async ({ page }) => {
-  await page.goto('/?page=account');
-  // On account page as a guest, the sign-in button is disabled when cloud is
-  // not configured, so open the dialog via the header CTA instead.
-  await page.locator('[data-action="auth"]').first().click();
+test('phone viewport: direct guest access via Play picker (Survive 2.0 first); no fake login, no credentials', async ({ page }) => {
+  await page.goto('/');
+  const welcome = page.getByRole('button', { name: /Let.s go/ });
+  if (await welcome.count()) await welcome.click();
+  // no functional-looking login in the guest build
+  await expect(page.locator('[data-action="auth"]')).toHaveCount(0);
+  // Play CTA opens the games picker; Survive 2.0 is first
+  await page.locator('header [data-action="games-sheet"]').click();
   await expect(page.locator('.dialog')).toBeVisible();
-  // Focus should be inside the dialog (trap/initial focus).
-  const focusInDialog = await page.evaluate(() => !!document.activeElement?.closest('.dialog'));
-  expect(focusInDialog).toBe(true);
+  const firstGame = page.locator('.dialog [data-action="nav"]').first();
+  await expect(firstGame).toHaveAttribute('data-page', 'survive2');
+  await firstGame.click();
+  await expect(page).toHaveURL(/page=survive2/);
+  // account page: coming soon, no credential inputs
+  await page.goto('/?page=account');
+  await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+  expect((await page.locator('body').innerText()).toLowerCase()).toContain('coming soon');
 });

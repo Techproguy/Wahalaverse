@@ -1,6 +1,57 @@
-# REVIEW_NOTES — Milestone 1 (Reliability + tests)
+# REVIEW_NOTES
 
-_For the product owner and the ChatGPT reviewer. Date: 2026-10-28._
+_For the product owner and the ChatGPT reviewer._
+
+---
+
+## ADDENDUM — Survive Naija 2.0 + guest-first onboarding (2026-11-02)
+
+_Branch: `survive-naija-2` (off the integrated guest build `integration-rehearsal`). **Not pushed, not deployed** — awaiting founder acceptance per the authorization. The original Survive Naija (`?page=sim`) is preserved and still works._
+
+### What shipped
+- **A scenario-agnostic seeded survival engine** (`survive-engine.js`) — resources are real
+  quantities (cash can go negative; food = meals, light = days) plus causal state meters
+  (wellbeing / safety / livelihood, clamped 0–100) and **derived** social support from NPC
+  goodwill. Daily action-point economy, standing actions + a seeded event deck + NPC calls,
+  overnight resolution (eating, fatigue, debt interest, delayed "seeds", setbacks &
+  recovery), multiple endings + a Reckoning. Runs are **pure data** so they serialise for
+  device-local save/resume.
+- **Three scenarios under the "Survive Naija 2.0" umbrella** (all on the one engine):
+  - **7 Days to Payday** (salary earner) — the fully-tuned launch scenario.
+  - **7 Days of Hustle** (small-business) — Beta, own-hustle income, market volatility.
+  - **Campus Survival** (student) — Beta, allowance/academics/squad.
+- **Guest-first onboarding** — one dismissible first-visit welcome (not a carousel; it
+  remembers), a one-card skippable per-game intro, and a mobile **Games** picker that keeps
+  every category one tap away. **No account/registration surface is added** (M2 stays hidden).
+
+### Acceptance gates — evidence (all PASS)
+Verified by deterministic simulation of the **7 Days to Payday** scenario + Playwright E2E
+(`npm run test:unit` → 129 pass; `npx playwright test` → 71 pass, 1 desktop-only skip):
+
+| # | Gate | Evidence |
+|---|------|----------|
+| 1 | Exhaust **and** recover | seed 4: a `collapse` setback occurs, run still completes → `burnt_out` (not game-over). Unit: "RECOVERABLE setback". |
+| 2 | Safety / work / relationships / opportunities matter — not just cash | Skipping work → `sacked` **despite cash**; careful play (rest + relationships) reaches `community` and `soft_life`. Unit: "LIVELIHOOD can be lost", "OPPORTUNITY/SUPPORT matter". |
+| 3 | A Day-1 decision alters things later | seed 2: taking food on credit on Day 1 fires on **Day 4** with cause "buying food on credit". Unit: "DELAYED consequence". |
+| 4 | Two runs differ | seed 1 → `survived_just`, seed 3 → `burnt_out`; different states. Unit: "TWO RUNS DIFFER". |
+| 5 | Same seed reproducible | seed 5 == seed 5 → identical final state + ending + fired seeds. Unit: "REPRODUCIBLE". |
+| 6 | Named characters remember | "Mama Nkechi" goodwill persists across days (gw=2 held after `endDay`). Unit: "RELATIONSHIPS are memory". |
+| 7 | Outcomes explain causal history | Reckoning returns outcome + before/after indicators + **traced** surprises (each with a human cause) + per-NPC moods. Unit: "Reckoning explains the week". |
+| 8 | Mobile onboarding understandable + skippable | E2E: welcome shows once, dismisses, doesn't reappear on reload; games picker lists all 5 categories. `tests/e2e/onboarding.spec.js`. |
+| 9 | All existing games still work | Full E2E regression green (Predict/CYOW/Survive/ATL/navigation). |
+
+Ending spread (greedy policy × 10 seeds): `survived_just`, `burnt_out`, `hustler`
+(careful play additionally opens `soft_life`, `community`, `made_it`, `owing`).
+
+### Not done (by design / not authorised)
+- No `git push`, no deploy, no new hosted preview, no `main` merge, no Supabase/M2 changes.
+- Hustle & Campus are **Beta** (architected + playable + reproducible; lighter decks, less
+  tuned than Payday). Labelled "Beta" in the picker.
+- Mascot-only header mark still needs a transparent mascot PNG or ImageMagick approval.
+
+---
+
+## Milestone 1 (Reliability + tests) — 2026-10-28
 
 ## Feature branch / PR
 - Branch: `milestone-1-reliability` (off `main`)

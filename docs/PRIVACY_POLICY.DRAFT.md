@@ -73,9 +73,9 @@ challenges and activity across devices.
   to sign in. But guest play is **not processed exclusively on your device** — be
   accurate about three things:
   - **Device-local storage.** Your recent in-game activity and any in-progress
-    "Create Your Own Wahala" draft are stored in your **own browser** (`localStorage`)
-    on your device (keys `wv_activity`, `wv_cc_draft`, `wv_pending_name`). We cannot
-    read these.
+    "Create Your Own Wahala" draft, and any in-progress **Survive Naija 2.0** game are
+    stored in your **own browser** (`localStorage`) on your device (keys `wv_activity`,
+    `wv_cc_draft`, `wv_sn2_run`, `wv_intro_*`, `wv_pending_name`). We cannot read these.
   - **Hosting provider (Vercel).** Serving the site means our hosting/CDN provider
     (**Vercel**) necessarily **processes your requests** — including your **IP address**,
     user-agent and standard **access/security logs** — to deliver the pages, even when
@@ -131,6 +131,11 @@ and the consent model before launch.
   - `wv_cc_draft` — an **autosaved draft** of a "Create Your Own Wahala" challenge you are
     building, so it survives an accidental reload. Stored **only on your device**, never
     sent to us; cleared when you generate the challenge, start fresh, or clear browser data.
+  - `wv_sn2_run` — a **saved Survive Naija 2.0 game in progress** (the seeded game state, so
+    you can close the tab and resume the same week later). Stored **only on your device**,
+    never sent to us; cleared when the run ends, when you quit it, or when you clear browser data.
+  - `wv_intro_*` — small flags recording that you have seen the one-time welcome
+    (`wv_intro_welcome`) or a game's intro, so we don't show them again. No personal data.
   - `wv_pending_name` — a display name you entered, kept briefly to complete sign-in.
   - a per-tab session id (`sessionStorage`) used to keep guest activity on this device only.
 - If you sign in, your authentication session token is stored by the auth provider's SDK
